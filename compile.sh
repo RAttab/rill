@@ -1,7 +1,8 @@
 #! /usr/bin/env bash
 
-set -o errexit -o nounset -o pipefail
-set -o xtrace
+set -o errexit -o nounset -o pipefail -o xtrace
+
+: ${PREFIX:="."}
 
 declare -a SRC
 SRC=(pairs store rill)
@@ -14,8 +15,9 @@ CFLAGS="$CFLAGS -fno-strict-aliasing"
 
 OBJ=""
 for src in "${SRC[@]}"; do
-    gcc -c -o "$src.o" "src/$src.c" $CFLAGS
+    gcc -c -o "$src.o" "${PREFIX}/src/$src.c" $CFLAGS
     OBJ="$OBJ $src.o"
 done
 ar rcs librill.a $OBJ
 
+gcc -o bench "${PREFIX}/src/bench.c" librill.a $CFLAGS

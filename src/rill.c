@@ -20,11 +20,11 @@
 // config
 // -----------------------------------------------------------------------------
 
-enum { hours = 24, days = 30, months = 15};
+enum { hours = 24, days = 30, months = 13};
 enum
 {
     quant_hour = 60 * 60,
-    quant_day =  hours * quant_hour,
+    quant_day = hours * quant_hour,
     quant_month = days * quant_day,
 };
 
@@ -129,15 +129,18 @@ struct rill * rill_open(const char *dir)
         goto fail_dir;
     }
 
-    struct dirent stream, *result;
+    struct dirent it, *entry;
     while (true) {
-        if (readdir_r(dir_handle, &stream, &result) == -1) {
+        if (readdir_r(dir_handle, &it, &entry) == -1) {
             fail_errno("unable to read dir '%s'", dir);
             goto fail_readdir;
         }
-        else if (!result) break;
+        else if (!entry) break;
+        else if (entry->d_type != DT_REG) continue;
 
-        (void) load_store(db, result->d_name);
+        char file[NAME_MAX];
+        snprintf(file, sizeof(file), "%s/%s", db->dir, entry->d_name);
+        (void) load_store(db, file);
     }
 
     closedir(dir_handle);
@@ -164,11 +167,17 @@ struct rill * rill_open(const char *dir)
 
 void rill_close(struct rill *db)
 {
-    for (size_t i = 0; i < days; ++i)
-        rill_store_close(db->daily[i]);
+    for (size_t i = 0; i < hours; ++i) {
+        if (db->hourly[i]) rill_store_close(db->hourly[i]);
+    }
 
-    for (size_t i = 0; i < months; ++i)
-        rill_store_close(db->monthly[i]);
+    for (size_t i = 0; i < days; ++i) {
+        if (db->daily[i]) rill_store_close(db->daily[i]);
+    }
+
+    for (size_t i = 0; i < months; ++i) {
+        if (db->monthly[i]) rill_store_close(db->monthly[i]);
+    }
 
     rill_pairs_free(db->acc);
     rill_pairs_free(db->dump);
@@ -218,13 +227,17 @@ static bool rotate_monthly(
         struct rill_store **list, size_t len)
 {
     char file[NAME_MAX];
-    snprintf(file, sizeof(file), "%s/%lu.rill", db->dir, ts / quant_month);
+    snprintf(file, sizeof(file), "%s/%06lu.rill", db->dir, ts / quant_month);
 
-    if (*store) (void) rill_store_rm(*store);
+    if (*store) {
+        (void) rill_store_rm(*store);
+        *store = NULL;
+    }
     if (!rill_store_merge(file, ts, quant_day, list, len)) return false;
     if (!(*store = rill_store_open(file))) return false;
 
     for (size_t i = 0; i < len; ++i) {
+        if (!list[i]) continue;
         (void) rill_store_rm(list[i]);
         list[i] = NULL;
     }
@@ -239,7 +252,7 @@ static bool rotate_daily(
         struct rill_store **list, size_t len)
 {
     char file[NAME_MAX];
-    snprintf(file, sizeof(file), "%s/%lu-%lu.rill", db->dir,
+    snprintf(file, sizeof(file), "%s/%06lu-%02lu.rill", db->dir,
             ts / quant_month,
             (ts / quant_day) % days);
 
@@ -248,6 +261,7 @@ static bool rotate_daily(
     if (!(*store = rill_store_open(file))) return false;
 
     for (size_t i = 0; i < len; ++i) {
+        if (!list[i]) continue;
         (void) rill_store_rm(list[i]);
         list[i] = NULL;
     }
@@ -258,7 +272,7 @@ static bool rotate_daily(
 static bool rotate_hourly(struct rill *db, struct rill_store **store, rill_ts_t ts)
 {
     char file[NAME_MAX];
-    snprintf(file, sizeof(file), "%s/%lu-%lu-%lu.rill", db->dir,
+    snprintf(file, sizeof(file), "%s/%06lu-%02lu-%02lu.rill", db->dir,
             ts / quant_month,
             (ts / quant_day) % days,
             (ts / quant_hour) % hours);
@@ -286,7 +300,7 @@ bool rill_rotate(struct rill *db, rill_ts_t now)
 {
     if (now / quant_month != db->ts / quant_month) {
         size_t quant = db->ts / quant_month;
-        if (!rotate_monthly(db, &db->monthly[quant % days], db->ts, db->daily, days)) {
+        if (!rotate_monthly(db, &db->monthly[quant % months], db->ts, db->daily, days)) {
             fail("unable to complete monthly rotation '%lu'", quant);
             return false;
         }

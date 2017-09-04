@@ -17,16 +17,17 @@
 void rill_pairs_free(struct rill_pairs *pairs)
 {
     free(pairs->data);
+    free(pairs);
 }
 
 static bool resize(struct rill_pairs *pairs, size_t len)
 {
     if (len <= pairs->cap) return true;
 
-    size_t cap = pairs->cap ? pairs->cap : 1;
+    size_t cap = pairs->cap ? pairs->cap : 16;
     while (cap < len) cap *= 2;
 
-    void *ret = realloc(pairs->data, cap);
+    void *ret = realloc(pairs->data, cap * sizeof(*pairs->data));
     if (!ret) return false;
 
     pairs->data = ret;

@@ -24,7 +24,7 @@
 // utils
 // -----------------------------------------------------------------------------
 
-static const size_t page_len = 1UL << 10;
+static const size_t page_len = 4096;
 
 static inline size_t to_vma_len(size_t len)
 {
@@ -54,7 +54,7 @@ struct rill_store
 {
     int fd;
     const char *file;
-    
+
     void *vma;
     size_t vma_len;
 
@@ -101,9 +101,9 @@ struct rill_store *rill_store_open(const char *file)
         goto fail_open;
     }
 
-    store->vma = mmap(0, store->vma_len, PROT_READ, MAP_PRIVATE | MAP_HUGETLB, store->fd, 0);
+    store->vma = mmap(NULL, store->vma_len, PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
-        fail_errno("unable to mmap '%s'", file);
+        fail_errno("[reader] unable to mmap '%s'", file);
         goto fail_mmap;
     }
 
@@ -154,7 +154,7 @@ void rill_store_close(struct rill_store *store)
 
 bool rill_store_rm(struct rill_store *store)
 {
-    if (!unlink(store->file)) {
+    if (unlink(store->file) == -1) {
         fail_errno("unable to unlink '%s'", store->file);
         return false;
     }
@@ -188,9 +188,7 @@ static bool writer_open(
     }
 
     store->vma_len = to_vma_len(len);
-    int vma_prot = PROT_WRITE | PROT_READ;
-    int vma_flags = MAP_PRIVATE | MAP_HUGETLB;
-    store->vma = mmap(0, store->vma_len, vma_prot, vma_flags, store->fd, 0);
+    store->vma = mmap(NULL, store->vma_len, PROT_WRITE | PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
         fail_errno("unable to mmap '%s'", file);
         goto fail_mmap;
@@ -261,17 +259,21 @@ bool rill_store_write(
 bool rill_store_merge(
         const char *file,
         rill_ts_t ts, size_t quant,
-        struct rill_store **list, size_t len)
+        struct rill_store **list, size_t list_len)
 {
-    assert(len > 1);
+    assert(list_len > 1);
 
     size_t cap = 0;
-    struct { struct rill_kv *it, *end; } its[len];
+    struct { struct rill_kv *it, *end; } its[list_len];
 
-    for (size_t i = 0; i < len; ++i) {
+    size_t it_len = 0;
+    for (size_t i = 0; i < list_len; ++i) {
+        if (!list[i]) continue;
+
         cap += list[i]->head->pairs;
-        its[i].it = list[i]->data;
-        its[i].it = list[i]->data + list[i]->head->pairs;
+        its[it_len].it = list[i]->data;
+        its[it_len].end = list[i]->data + list[i]->head->pairs;
+        it_len++;
     }
 
     struct rill_store store = {0};
@@ -283,29 +285,24 @@ bool rill_store_merge(
     size_t pairs = 0;
     struct rill_kv *current = store.data;
 
-    while (true) {
-        size_t smallest = 0;
-        for (size_t i = 0; i < len; ++i) {
-            if (its[i].it != its[i].end) break;
-            smallest++;
-        }
-        if (smallest == len) break;
-
-        for (size_t i = smallest + 1; i < len; ++i) {
-            if (its[i].it == its[i].end) continue;
-            if (rill_kv_cmp(its[i].it, its[smallest].it) < 0)
-                smallest = i;
+    while (it_len > 0) {
+        size_t target = 0;
+        for (size_t i = 1; i < it_len; ++i) {
+            if (rill_kv_cmp(its[i].it, its[target].it) < 0)
+                target = i;
         }
 
-        if (rill_kv_cmp(current, its[smallest].it) < 0) {
+        if (rill_kv_cmp(current, its[target].it) < 0) {
             pairs++;
             current++;
-            assert(pairs != cap);
-
-            *current = *its[smallest].it;
+            *current = *its[target].it;
         }
 
-        its[smallest].it++;
+        its[target].it++;
+        if (its[target].it == its[target].end) {
+            memmove(its + target, its + target + 1, (it_len - target - 1) * sizeof(its[0]));
+            it_len--;
+        }
     }
 
     writer_close(&store, pairs);
