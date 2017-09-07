@@ -45,4 +45,5 @@ bool rill_store_scan_val(
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
 
+void rill_store_print_head(struct rill_store *store);
 void rill_store_print(struct rill_store *store);

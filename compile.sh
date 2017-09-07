@@ -20,4 +20,6 @@ for src in "${SRC[@]}"; do
 done
 ar rcs librill.a $OBJ
 
-gcc -o bench "${PREFIX}/src/bench.c" librill.a $CFLAGS
+gcc -o rill_load "${PREFIX}/src/load.c" librill.a $CFLAGS
+gcc -o rill_query "${PREFIX}/src/query.c" librill.a $CFLAGS
+gcc -o rill_dump "${PREFIX}/src/dump.c" librill.a $CFLAGS

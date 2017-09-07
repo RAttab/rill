@@ -115,7 +115,7 @@ void rill_pairs_print(const struct rill_pairs *pairs)
     for (size_t i = 0; i < pairs->len; ++i) {
         struct rill_kv *kv = &pairs->data[i];
 
-        if (kv->key == key) fprintf(stderr, "%lu, ", kv->val);
+        if (kv->key == key) fprintf(stderr, ", %lu", kv->val);
         else {
             if (key != no_key) fprintf(stderr, "]\n");
             fprintf(stderr, "%p: [ %lu", (void *) kv->key, kv->val);
@@ -123,5 +123,5 @@ void rill_pairs_print(const struct rill_pairs *pairs)
         }
     }
 
-    fprintf(stderr, "]\n");
+    fprintf(stderr, " ]\n");
 }

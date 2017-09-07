@@ -233,7 +233,7 @@ static bool rotate_monthly(
         (void) rill_store_rm(*store);
         *store = NULL;
     }
-    if (!rill_store_merge(file, ts, quant_day, list, len)) return false;
+    if (!rill_store_merge(file, ts, quant_month, list, len)) return false;
     if (!(*store = rill_store_open(file))) return false;
 
     for (size_t i = 0; i < len; ++i) {
@@ -333,28 +333,40 @@ bool rill_rotate(struct rill *db, rill_ts_t now)
 
 void rill_query_key(struct rill *db, rill_key_t *keys, size_t len, struct rill_pairs *out)
 {
-    for (size_t i = 0; i < hours; ++i)
+    for (size_t i = 0; i < hours; ++i) {
+        if (!db->hourly[i]) continue;
         rill_store_scan_key(db->hourly[i], keys, len, out);
+    }
 
-    for (size_t i = 0; i < days; ++i)
+    for (size_t i = 0; i < days; ++i) {
+        if (!db->daily[i]) continue;
         rill_store_scan_key(db->daily[i], keys, len, out);
+    }
 
-    for (size_t i = 0; i < months; ++i)
+    for (size_t i = 0; i < months; ++i) {
+        if (!db->monthly[i]) continue;
         rill_store_scan_key(db->monthly[i], keys, len, out);
+    }
 
     rill_pairs_compact(out);
 }
 
 void rill_query_val(struct rill *db, rill_val_t *vals, size_t len, struct rill_pairs *out)
 {
-    for (size_t i = 0; i < hours; ++i)
+    for (size_t i = 0; i < hours; ++i) {
+        if (!db->hourly[i]) continue;
         rill_store_scan_val(db->hourly[i], vals, len, out);
+    }
 
-    for (size_t i = 0; i < days; ++i)
+    for (size_t i = 0; i < days; ++i) {
+        if (!db->daily[i]) continue;
         rill_store_scan_val(db->daily[i], vals, len, out);
+    }
 
-    for (size_t i = 0; i < months; ++i)
+    for (size_t i = 0; i < months; ++i) {
+        if (!db->monthly[i]) continue;
         rill_store_scan_val(db->monthly[i], vals, len, out);
+    }
 
     rill_pairs_compact(out);
 }

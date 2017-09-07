@@ -174,7 +174,7 @@ static bool writer_open(
         rill_ts_t ts, size_t quant)
 {
     store->file = file;
-    
+
     store->fd = open(file, O_RDWR | O_CREAT | O_EXCL, 0640);
     if (store->fd == -1) {
         fail_errno("unable to open '%s'", file);
@@ -384,6 +384,15 @@ bool rill_store_scan_val(
     return true;
 }
 
+void rill_store_print_head(struct rill_store *store)
+{
+    fprintf(stderr, "magic:   0x%x\n", store->head->magic);
+    fprintf(stderr, "version: %u\n", store->head->version);
+    fprintf(stderr, "pairs:   %lu\n", store->head->pairs);
+    fprintf(stderr, "ts:      %lu\n", store->head->ts);
+    fprintf(stderr, "quant:   %lu\n", store->head->quant);
+}
+
 void rill_store_print(struct rill_store *store)
 {
     vma_will_need(store);
@@ -394,7 +403,7 @@ void rill_store_print(struct rill_store *store)
     for (size_t i = 0; i < store->head->pairs; ++i) {
         struct rill_kv *kv = &store->data[i];
 
-        if (kv->key == key) fprintf(stderr, "%lu, ", kv->val);
+        if (kv->key == key) fprintf(stderr, ", %lu", kv->val);
         else {
             if (key != no_key) fprintf(stderr, "]\n");
             fprintf(stderr, "%p: [ %lu", (void *) kv->key, kv->val);
@@ -402,7 +411,7 @@ void rill_store_print(struct rill_store *store)
         }
     }
 
-    fprintf(stderr, "]\n");
+    fprintf(stderr, " ]\n");
 
     vma_dont_need(store);
 }
