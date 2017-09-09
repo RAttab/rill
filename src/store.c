@@ -5,6 +5,7 @@
 
 #include "rill.h"
 #include "utils.h"
+#include "htable.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,23 +21,17 @@
 
 
 // -----------------------------------------------------------------------------
-// utils
+// impl
 // -----------------------------------------------------------------------------
 
-static const size_t page_len = 4096;
-
-static inline size_t to_vma_len(size_t len)
-{
-    if (!(len % page_len)) return len;
-    return (len & ~(page_len - 1)) + page_len;
-}
+#include "coder.c"
 
 
 // -----------------------------------------------------------------------------
 // store
 // -----------------------------------------------------------------------------
 
-static const uint32_t version = 1;
+static const uint32_t version = 2;
 static const uint32_t magic = 0x4C4C4952;
 
 struct rill_packed header
@@ -44,9 +39,14 @@ struct rill_packed header
     uint32_t magic;
     uint32_t version;
 
-    uint64_t pairs;
     uint64_t ts;
     uint64_t quant;
+
+    uint64_t keys;
+    uint64_t pairs;
+
+    uint64_t vals_off;
+    uint64_t data_off;
 };
 
 struct rill_store
@@ -58,8 +58,54 @@ struct rill_store
     size_t vma_len;
 
     struct header *head;
-    struct rill_kv *data;
+    struct vals *vals;
+    uint8_t *data;
+    uint8_t *end;
 };
+
+
+// -----------------------------------------------------------------------------
+// coder
+// -----------------------------------------------------------------------------
+
+static struct coder store_encoder(struct rill_store *store)
+{
+    return make_encoder(
+            store->vals,
+            store->vma + store->head->data_off,
+            store->vma + store->vma_len);
+}
+
+static struct coder store_decoder(struct rill_store *store)
+{
+    return make_decoder(
+            store->vals,
+            store->vma + store->head->data_off,
+            store->vma + store->vma_len);
+}
+
+
+// -----------------------------------------------------------------------------
+// vma
+// -----------------------------------------------------------------------------
+
+static inline size_t to_vma_len(size_t len)
+{
+    if (!(len % page_len)) return len;
+    return (len & ~(page_len - 1)) + page_len;
+}
+
+static inline void vma_will_need(struct rill_store *store)
+{
+    if (madvise(store->vma, store->vma_len, MADV_WILLNEED) == -1)
+        fail("unable to madvise '%s'", store->file);
+}
+
+static inline void vma_dont_need(struct rill_store *store)
+{
+    if (madvise(store->vma, store->vma_len, MADV_DONTNEED) == -1)
+        fail("unable to madvise '%s'", store->file);
+}
 
 
 // -----------------------------------------------------------------------------
@@ -107,7 +153,9 @@ struct rill_store *rill_store_open(const char *file)
     }
 
     store->head = store->vma;
-    store->data = (void *) ((uintptr_t) store->vma + sizeof(struct header));
+    store->vals = (void *) ((uintptr_t) store->vma + store->head->vals_off);
+    store->data = (void *) ((uintptr_t) store->vma + store->head->data_off);
+    store->end = (void *) ((uintptr_t) store->vma + store->vma_len);
 
     if (store->head->magic != magic) {
         fail("invalid magic '0x%x' for '%s'", store->head->magic, file);
@@ -119,15 +167,8 @@ struct rill_store *rill_store_open(const char *file)
         goto fail_version;
     }
 
-    size_t expected = sizeof(struct header) + sizeof(struct rill_kv) * store->head->pairs;
-    if (expected != len) {
-        fail("invalid file size '%lu != %lu' for '%s'", len, expected, file);
-        goto fail_len;
-    }
-
     return store;
 
-  fail_len:
   fail_version:
   fail_magic:
     munmap(store->vma, store->vma_len);
@@ -180,7 +221,7 @@ static bool writer_open(
         goto fail_open;
     }
 
-    size_t len = sizeof(struct header) + sizeof(struct rill_kv) * cap;
+    size_t len = sizeof(struct header) + cap;
     if (ftruncate(store->fd, len) == -1) {
         fail_errno("unable to resize '%s'", file);
         goto fail_truncate;
@@ -194,13 +235,15 @@ static bool writer_open(
     }
 
     store->head = store->vma;
-    store->data = (void *) ((uintptr_t) store->vma + sizeof(struct header));
+    store->vals = (void *) ((uintptr_t) store->vma + sizeof(struct header));
+    store->end = (void *) ((uintptr_t) store->vma + store->vma_len);
 
     *store->head = (struct header) {
         .magic = magic,
         .version = version,
         .ts = ts,
         .quant = quant,
+        .vals_off = sizeof(struct header),
     };
 
     return true;
@@ -213,21 +256,35 @@ static bool writer_open(
     return false;
 }
 
-
-static void writer_close(struct rill_store *store, size_t pairs)
+static void writer_close(struct rill_store *store, size_t len)
 {
-    store->head->pairs = pairs;
-
     munmap(store->vma, store->vma_len);
 
-    size_t len = sizeof(struct header) + sizeof(struct rill_kv) * pairs;
-    if (ftruncate(store->fd, len) == -1)
-        fail_errno("unable to resize '%s'", store->file);
+    if (len) {
+        if (ftruncate(store->fd, len) == -1)
+            fail_errno("unable to resize '%s'", store->file);
 
-    if (fdatasync(store->fd) == -1)
-        fail_errno("unable to fsync '%s'", store->file);
+        if (fdatasync(store->fd) == -1)
+            fail_errno("unable to fsync '%s'", store->file);
+    }
+    else if (unlink(store->file) == -1)
+        fail_errno("unable to unlink '%s'", store->file);
 
     close(store->fd);
+}
+
+static struct coder writer_begin(
+        struct rill_store *store, const struct vals *vals)
+{
+    size_t len = sizeof(*vals) + sizeof(vals->data[0]) * vals->len;
+    assert(store->head->vals_off + len < store->vma_len);
+
+    memcpy(store->vals, vals, len);
+
+    store->head->data_off = store->head->vals_off + len;
+    store->data = (void *) ((uintptr_t) store->vma + store->head->data_off);
+
+    return store_encoder(store);
 }
 
 bool rill_store_write(
@@ -236,22 +293,41 @@ bool rill_store_write(
         struct rill_pairs *pairs)
 {
     rill_pairs_compact(pairs);
+    if (!pairs->len) return true;
+
+    struct vals *vals = vals_from_pairs(pairs);
+    if (!vals) goto fail_vals;
+
+    size_t cap =
+        sizeof(struct vals) + (sizeof(vals->data[0]) * vals->len) +
+        (sizeof(rill_key_t) * (pairs->len + 1)) +
+        (coder_max_val_len * (pairs->len + 1));
 
     struct rill_store store = {0};
-    if (!writer_open(&store, file, pairs->len, ts, quant)) {
+    if (!writer_open(&store, file, cap, ts, quant)) {
         fail("unable to create '%s'", file);
         goto fail_open;
     }
 
-    for (size_t i = 0; i < pairs->len; ++i) {
-        store.data[i].key = pairs->data[i].key;
-        store.data[i].val = pairs->data[i].val;
-    }
+    struct coder coder = writer_begin(&store, vals);
 
-    writer_close(&store, pairs->len);
+    for (size_t i = 0; i < pairs->len; ++i) {
+        if (!coder_encode(&coder, &pairs->data[i])) goto fail_encode;
+    }
+    if (!coder_finish(&coder)) goto fail_encode;
+
+    store.head->keys = coder.keys;
+    store.head->pairs = coder.pairs;
+
+    writer_close(&store, (uintptr_t) coder.end - (uintptr_t) store.vma);
+    free(vals);
     return true;
 
+  fail_encode:
+    writer_close(&store, 0);
   fail_open:
+    free(vals);
+  fail_vals:
     return false;
 }
 
@@ -263,15 +339,21 @@ bool rill_store_merge(
     assert(list_len > 1);
 
     size_t cap = 0;
-    struct { struct rill_kv *it, *end; } its[list_len];
+    struct vals *vals = NULL;
+    struct it {
+        struct rill_kv kv;
+        struct coder decoder;
+    } its[list_len];
 
     size_t it_len = 0;
     for (size_t i = 0; i < list_len; ++i) {
         if (!list[i]) continue;
+        vma_will_need(list[i]);
 
-        cap += list[i]->head->pairs;
-        its[it_len].it = list[i]->data;
-        its[it_len].end = list[i]->data + list[i]->head->pairs;
+        if (!(vals = vals_merge(vals, list[i]->vals))) goto fail_vals;
+        its[it_len].decoder = store_decoder(list[i]);
+
+        cap += list[i]->vma_len;
         it_len++;
     }
 
@@ -281,33 +363,53 @@ bool rill_store_merge(
         goto fail_open;
     }
 
-    size_t pairs = 0;
-    struct rill_kv *current = store.data;
+    struct coder encoder = writer_begin(&store, vals);
+
+    for (size_t i = 0; i < it_len; ++i) {
+        if (!(coder_decode(&its[i].decoder, &its[i].kv))) goto fail_coder;
+    }
+
+    struct rill_kv prev = {0};
 
     while (it_len > 0) {
         size_t target = 0;
         for (size_t i = 1; i < it_len; ++i) {
-            if (rill_kv_cmp(its[i].it, its[target].it) < 0)
+            if (rill_kv_cmp(&its[i].kv, &its[target].kv) < 0)
                 target = i;
         }
 
-        if (rill_kv_cmp(current, its[target].it) < 0) {
-            pairs++;
-            current++;
-            *current = *its[target].it;
+        struct it *it = &its[target];
+        if (rill_likely(rill_kv_nil(&prev) || rill_kv_cmp(&prev, &it->kv) < 0)) {
+            prev = it->kv;
+            if (!coder_encode(&encoder, &it->kv)) goto fail_coder;
         }
 
-        its[target].it++;
-        if (its[target].it == its[target].end) {
-            memmove(its + target, its + target + 1, (it_len - target - 1) * sizeof(its[0]));
+        if (!coder_decode(&it->decoder, &it->kv)) goto fail_coder;
+        if (rill_unlikely(rill_kv_nil(&it->kv))) {
+            memmove(its + target,
+                    its + target + 1,
+                    (it_len - target - 1) * sizeof(its[0]));
             it_len--;
         }
     }
 
-    writer_close(&store, pairs);
+    store.head->keys = encoder.keys;
+    store.head->pairs = encoder.pairs;
+
+    if (!coder_finish(&encoder)) goto fail_coder;
+    writer_close(&store, (uintptr_t) encoder.end - (uintptr_t) store.vma);
+
+    for (size_t i = 0; i < list_len; ++i) {
+        if (list[i]) vma_dont_need(list[i]);
+    }
+
     return true;
 
+  fail_coder:
+    writer_close(&store, 0);
   fail_open:
+    free(vals);
+  fail_vals:
     return false;
 }
 
@@ -331,18 +433,6 @@ size_t rill_store_quant(struct rill_store *store)
     return store->head->quant;
 }
 
-static inline void vma_will_need(struct rill_store *store)
-{
-    if (madvise(store->vma, store->vma_len, MADV_WILLNEED) == -1)
-        fail("unable to madvise '%s'", store->file);
-}
-
-static inline void vma_dont_need(struct rill_store *store)
-{
-    if (madvise(store->vma, store->vma_len, MADV_DONTNEED) == -1)
-        fail("unable to madvise '%s'", store->file);
-}
-
 bool rill_store_scan_key(
         struct rill_store *store,
         const rill_key_t *keys, size_t len,
@@ -350,17 +440,25 @@ bool rill_store_scan_key(
 {
     vma_will_need(store);
 
-    for (size_t i = 0; i < store->head->pairs; ++i) {
-        struct rill_kv *kv = &store->data[i];
+    struct rill_kv kv = {0};
+    struct coder coder = store_decoder(store);
+
+    while (true) {
+        if (!coder_decode(&coder, &kv)) goto fail;
+        if (rill_kv_nil(&kv)) break;
 
         for (size_t j = 0; j < len; ++j) {
-            if (kv->key != keys[j]) continue;
-            if (!rill_pairs_push(out, kv->key, kv->val)) return false;
+            if (kv.key != keys[j]) continue;
+            if (!rill_pairs_push(out, kv.key, kv.val)) goto fail;
         }
     }
 
     vma_dont_need(store);
     return true;
+
+  fail:
+    vma_dont_need(store);
+    return false;
 }
 
 bool rill_store_scan_val(
@@ -370,47 +468,63 @@ bool rill_store_scan_val(
 {
     vma_will_need(store);
 
+    struct rill_kv kv = {0};
+    struct coder coder = store_decoder(store);
+
     for (size_t i = 0; i < store->head->pairs; ++i) {
-        struct rill_kv *kv = &store->data[i];
+        if (!coder_decode(&coder, &kv)) goto fail;
+        if (rill_kv_nil(&kv)) break;
 
         for (size_t j = 0; j < len; ++j) {
-            if (kv->val != vals[j]) continue;
-            if (!rill_pairs_push(out, kv->key, kv->val)) return false;
+            if (kv.val != vals[j]) continue;
+            if (!rill_pairs_push(out, kv.key, kv.val)) goto fail;
         }
     }
 
     vma_dont_need(store);
     return true;
+
+  fail:
+    vma_dont_need(store);
+    return false;
 }
 
 void rill_store_print_head(struct rill_store *store)
 {
+    fprintf(stderr, "%s\n", store->file);
     fprintf(stderr, "magic:   0x%x\n", store->head->magic);
     fprintf(stderr, "version: %u\n", store->head->version);
-    fprintf(stderr, "pairs:   %lu\n", store->head->pairs);
     fprintf(stderr, "ts:      %lu\n", store->head->ts);
     fprintf(stderr, "quant:   %lu\n", store->head->quant);
+    fprintf(stderr, "keys:    %lu\n", store->head->keys);
+    fprintf(stderr, "vals:    %lu\n", store->vals->len);
+    fprintf(stderr, "pairs:   %lu\n", store->head->pairs);
 }
 
 void rill_store_print(struct rill_store *store)
 {
     vma_will_need(store);
 
+    struct rill_kv kv = {0};
+    struct coder coder = store_decoder(store);
+
     const rill_key_t no_key = -1ULL;
     rill_key_t key = no_key;
 
     for (size_t i = 0; i < store->head->pairs; ++i) {
-        struct rill_kv *kv = &store->data[i];
+        if (!coder_decode(&coder, &kv)) goto fail;
+        if (rill_kv_nil(&kv)) break;
 
-        if (kv->key == key) fprintf(stderr, ", %lu", kv->val);
+        if (kv.key == key) fprintf(stderr, ", %lu", kv.val);
         else {
             if (key != no_key) fprintf(stderr, "]\n");
-            fprintf(stderr, "%p: [ %lu", (void *) kv->key, kv->val);
-            key = kv->key;
+            fprintf(stderr, "%p: [ %lu", (void *) kv.key, kv.val);
+            key = kv.key;
         }
     }
 
     fprintf(stderr, " ]\n");
 
+  fail:
     vma_dont_need(store);
 }

@@ -6,23 +6,39 @@
 #pragma once
 
 
-#include <stdio.h>
-#include <string.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stddef.h>
+#include <string.h>
 #include <stdatomic.h>
+
+
+// -----------------------------------------------------------------------------
+// attributes
+// -----------------------------------------------------------------------------
+
+#define rill_packed       __attribute__((__packed__))
+#define rill_likely(x)    __builtin_expect(x, 1)
+#define rill_unlikely(x)  __builtin_expect(x, 0)
+
+
+// -----------------------------------------------------------------------------
+// misc
+// -----------------------------------------------------------------------------
+
+enum { page_len_s = 4096 };
+static const size_t page_len = page_len_s;
 
 
 // -----------------------------------------------------------------------------
 // err
 // -----------------------------------------------------------------------------
 
-
 #define fail(fmt, ...) \
     fprintf(stderr, "[fail] "fmt"\n", __VA_ARGS__)
 
 #define fail_errno(fmt, ...) \
     fprintf(stderr, "[fail] "fmt"(%d): %s\n", __VA_ARGS__, errno, strerror(errno))
-
 
 // -----------------------------------------------------------------------------
 // lock

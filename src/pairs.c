@@ -17,7 +17,6 @@
 void rill_pairs_free(struct rill_pairs *pairs)
 {
     free(pairs->data);
-    free(pairs);
 }
 
 static bool resize(struct rill_pairs *pairs, size_t len)

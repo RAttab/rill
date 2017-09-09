@@ -49,22 +49,22 @@ int main(int argc, char **argv)
     if (!db) return 1;
 
     enum {
-        keys_per_sec = 10 * 1000,
+        keys_per_sec = 1 * 1000,
         seconds = 3 * 31 * 24 * 60 * 60,
 
         keys_range = 1 * 1000 * 1000 * 1000,
-        vals_range = 1 * 1000,
+        vals_range = 10 * 1000,
         vals_per_key = 4,
     };
 
     struct rng rng = rng_make(0);
     for (size_t ts = 0; ts < seconds; ++ts) {
         for (size_t i = 0; i < keys_per_sec; ++i) {
-            uint64_t key = rng_gen_val(&rng, ts, keys_range);
+            uint64_t key = rng_gen_val(&rng, 0, keys_range);
 
             for (size_t j = 0; j < vals_per_key; ++j) {
-                uint64_t val = rng_gen_val(&rng, ts, vals_range);
-                if (!rill_ingest(db, ts, key, val)) return 1;
+                uint64_t val = rng_gen_val(&rng, 0, vals_range);
+                if (!rill_ingest(db, key, val)) return 1;
             }
         }
 

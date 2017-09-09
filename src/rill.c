@@ -192,9 +192,17 @@ void rill_close(struct rill *db)
 // ingest
 // -----------------------------------------------------------------------------
 
-bool rill_ingest(struct rill *db, rill_ts_t now, rill_key_t key, rill_val_t val)
+bool rill_ingest(struct rill *db, rill_key_t key, rill_val_t val)
 {
-    (void) now;
+    if (!key) {
+        fail("invalid nil key '%lu'", key);
+        return false;
+    }
+
+    if (!val) {
+        fail("invalid nil value '%lu'", val);
+        return false;
+    }
 
     bool ret;
     {
@@ -287,20 +295,21 @@ static bool rotate_hourly(struct rill *db, struct rill_store **store, rill_ts_t 
     }
 
     assert(!*store);
-    if (!rill_store_write(file, ts, quant_hour, db->dump)) return false;
-    if (!(*store = rill_store_open(file))) return false;
+    if (db->dump->len) {
+        if (!rill_store_write(file, ts, quant_hour, db->dump)) return false;
+        if (!(*store = rill_store_open(file))) return false;
+    }
 
     rill_pairs_reset(db->dump, db->dump->cap);
-
     return true;
 }
 
 bool rill_rotate(struct rill *db, rill_ts_t now)
 {
-    if (now / quant_month != db->ts / quant_month) {
-        size_t quant = db->ts / quant_month;
-        if (!rotate_monthly(db, &db->monthly[quant % months], db->ts, db->daily, days)) {
-            fail("unable to complete monthly rotation '%lu'", quant);
+    if (now / quant_hour != db->ts / quant_hour) {
+        size_t quant = db->ts / quant_hour;
+        if (!rotate_hourly(db, &db->hourly[(now / quant_hour) % hours], db->ts)) {
+            fail("unable to complete hourly rotation '%lu'", quant);
             return false;
         }
     }
@@ -313,10 +322,10 @@ bool rill_rotate(struct rill *db, rill_ts_t now)
         }
     }
 
-    if (now / quant_hour != db->ts / quant_hour) {
-        size_t quant = db->ts / quant_hour;
-        if (!rotate_hourly(db, &db->hourly[(now / quant_hour) % hours], db->ts)) {
-            fail("unable to complete hourly rotation '%lu'", quant);
+    if (now / quant_month != db->ts / quant_month) {
+        size_t quant = db->ts / quant_month;
+        if (!rotate_monthly(db, &db->monthly[quant % months], db->ts, db->daily, days)) {
+            fail("unable to complete monthly rotation '%lu'", quant);
             return false;
         }
     }

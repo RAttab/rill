@@ -22,13 +22,16 @@ typedef uint64_t rill_val_t;
 // kv
 // -----------------------------------------------------------------------------
 
-#define rill_packed __attribute__((__packed__))
-
-struct rill_packed rill_kv
+struct rill_kv
 {
     rill_key_t key;
     rill_val_t val;
 };
+
+static inline bool rill_kv_nil(const struct rill_kv *kv)
+{
+    return !kv->key && !kv->val;
+}
 
 static inline int rill_kv_cmp(const struct rill_kv *lhs, const struct rill_kv *rhs)
 {
@@ -118,7 +121,7 @@ struct rill;
 struct rill * rill_open(const char *dir);
 void rill_close(struct rill *db);
 
-bool rill_ingest(struct rill *db, rill_ts_t now, rill_key_t key, rill_val_t val);
+bool rill_ingest(struct rill *db, rill_key_t key, rill_val_t val);
 bool rill_rotate(struct rill *db, rill_ts_t now);
 
 void rill_query_key(struct rill *db, rill_key_t *keys, size_t len, struct rill_pairs *out);
