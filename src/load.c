@@ -24,7 +24,7 @@ void rm(const char *path)
         else if (!entry) break;
         else if (entry->d_type != DT_REG) continue;
 
-        char file[NAME_MAX];
+        char file[PATH_MAX];
         snprintf(file, sizeof(file), "%s/%s", path, entry->d_name);
         unlink(file);
     }

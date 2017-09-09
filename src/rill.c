@@ -89,7 +89,7 @@ struct rill * rill_open(const char *dir)
         goto fail_alloc_struct;
     }
 
-    db->dir = strndup(dir, NAME_MAX);
+    db->dir = strndup(dir, PATH_MAX);
     if (!db->dir) {
         fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_dir;
@@ -137,7 +137,7 @@ struct rill * rill_open(const char *dir)
         else if (!entry) break;
         else if (entry->d_type != DT_REG) continue;
 
-        char file[NAME_MAX];
+        char file[PATH_MAX];
         snprintf(file, sizeof(file), "%s/%s", db->dir, entry->d_name);
         (void) load_store(db, file);
     }
@@ -225,7 +225,7 @@ static bool rotate_monthly(
         rill_ts_t ts,
         struct rill_store **list, size_t len)
 {
-    char file[NAME_MAX];
+    char file[PATH_MAX];
     snprintf(file, sizeof(file), "%s/%06lu.rill", db->dir, ts / quant_month);
 
     if (*store) {
@@ -250,7 +250,7 @@ static bool rotate_daily(
         rill_ts_t ts,
         struct rill_store **list, size_t len)
 {
-    char file[NAME_MAX];
+    char file[PATH_MAX];
     snprintf(file, sizeof(file), "%s/%06lu-%02lu.rill", db->dir,
             ts / quant_month,
             (ts / quant_day) % days);
@@ -270,7 +270,7 @@ static bool rotate_daily(
 
 static bool rotate_hourly(struct rill *db, struct rill_store **store, rill_ts_t ts)
 {
-    char file[NAME_MAX];
+    char file[PATH_MAX];
     snprintf(file, sizeof(file), "%s/%06lu-%02lu-%02lu.rill", db->dir,
             ts / quant_month,
             (ts / quant_day) % days,

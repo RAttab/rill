@@ -74,7 +74,7 @@ struct rill_store *rill_store_open(const char *file)
         goto fail_alloc_struct;
     }
 
-    store->file = strndup(file, NAME_MAX);
+    store->file = strndup(file, PATH_MAX);
     if (!store->file) {
         fail("unable to allocate memory for '%s'", file);
         goto fail_alloc_file;
