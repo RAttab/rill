@@ -4,7 +4,6 @@
 */
 
 #include "rill.h"
-#include "store.h"
 #include "utils.h"
 
 #include <assert.h>

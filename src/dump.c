@@ -4,7 +4,6 @@
 */
 
 #include "rill.h"
-#include "store.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -3,7 +3,6 @@
    FreeBSD-style copyright and disclaimer apply
 */
 
-#include "store.h"
 #include "rill.h"
 #include "utils.h"
 
