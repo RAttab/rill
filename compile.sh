@@ -5,7 +5,7 @@ set -o errexit -o nounset -o pipefail -o xtrace
 : ${PREFIX:="."}
 
 declare -a SRC
-SRC=(pairs store rill)
+SRC=(rng pairs store rill)
 
 CFLAGS="-g -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
 CFLAGS="$CFLAGS -Werror -Wall -Wextra"

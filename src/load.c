@@ -4,6 +4,7 @@
 */
 
 #include "rill.h"
+#include "rng.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,12 @@ void rm(const char *path)
     rmdir(path);
 }
 
+uint64_t rng_gen_val(struct rng *rng, uint64_t min, uint64_t range)
+{
+    uint64_t max = rng_gen_range(rng, 0, range) + 1;
+    return rng_gen_range(rng, min, min + max) + 1;
+}
+
 int main(int argc, char **argv)
 {
     (void) argc, (void) argv;
@@ -41,17 +48,30 @@ int main(int argc, char **argv)
     struct rill *db = rill_open("db");
     if (!db) return 1;
 
-    enum { max = 1000 * 1000 * 1000 };
+    enum {
+        keys_per_sec = 10 * 1000,
+        seconds = 3 * 31 * 24 * 60 * 60,
 
-    for (size_t i = 0; i < max; ++i) {
-        if (!rill_ingest(db, i / 1000, i, i)) return 1;
+        keys_range = 1 * 1000 * 1000 * 1000,
+        vals_range = 1 * 1000,
+        vals_per_key = 4,
+    };
 
-        if (i % (30 * 60 * 1000) == 0) {
-            if (!rill_rotate(db, i / 1000)) return 1;
+    struct rng rng = rng_make(0);
+    for (size_t ts = 0; ts < seconds; ++ts) {
+        for (size_t i = 0; i < keys_per_sec; ++i) {
+            uint64_t key = rng_gen_val(&rng, ts, keys_range);
+
+            for (size_t j = 0; j < vals_per_key; ++j) {
+                uint64_t val = rng_gen_val(&rng, ts, vals_range);
+                if (!rill_ingest(db, ts, key, val)) return 1;
+            }
         }
+
+        if (!rill_rotate(db, ts)) return 1;
     }
 
-    if (!rill_rotate(db, max + 60 * 60)) return 1;
+    if (!rill_rotate(db, seconds + 60 * 60)) return 1;
     rill_close(db);
 
     return 0;
