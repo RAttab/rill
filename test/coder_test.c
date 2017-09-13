@@ -75,9 +75,9 @@ static struct vals *make_vals_impl(rill_val_t *list, size_t len)
     return vals;
 }
 
-static void check_vals(struct rill_pairs pairs, struct vals *exp)
+static void check_vals(struct rill_pairs *pairs, struct vals *exp)
 {
-    struct vals *vals = vals_from_pairs(&pairs);
+    struct vals *vals = vals_from_pairs(pairs);
 
     assert(vals->len == exp->len);
     for (size_t i = 0; i < exp->len; ++i)
@@ -93,6 +93,7 @@ static void check_vals(struct rill_pairs pairs, struct vals *exp)
 
     free(vals);
     free(exp);
+    free(pairs);
 }
 
 static void check_vals_merge(struct vals *a, struct vals *b, struct vals *exp)
@@ -134,42 +135,44 @@ bool test_vals(void)
 // coder
 // -----------------------------------------------------------------------------
 
-void check_coder(struct rill_pairs pairs)
+void check_coder(struct rill_pairs *pairs)
 {
-    rill_pairs_compact(&pairs);
+    rill_pairs_compact(pairs);
 
-    size_t cap = (pairs.len + 1) * (sizeof(pairs.data[0]) + 3);
+    size_t cap = (pairs->len + 1) * (sizeof(pairs->data[0]) + 3);
     uint8_t *buffer = calloc(1, cap);
-    struct vals *vals = vals_from_pairs(&pairs);
+    struct vals *vals = vals_from_pairs(pairs);
 
     size_t len = 0;
     {
         struct coder coder = make_encoder(vals, buffer, buffer + cap);
-        for (size_t i = 0; i < pairs.len; ++i)
-            assert(coder_encode(&coder, &pairs.data[i]));
+        for (size_t i = 0; i < pairs->len; ++i)
+            assert(coder_encode(&coder, &pairs->data[i]));
         assert(coder_finish(&coder));
 
         len = coder.it - buffer;
         assert(len <= cap);
     }
 
-    /* printf("buffer: start=%p, len=%lu\n", (void *) buffer, len); */
-    /* for (size_t i = 0; i < cap;) { */
-    /*     printf("%6p: ", (void *) i); */
-    /*     for (size_t j = 0; j < 16 && i < cap; ++i, ++j) { */
-    /*         if (j % 2 == 0) printf(" "); */
-    /*         printf("%02x", buffer[i]); */
-    /*     } */
-    /*     printf("\n"); */
-    /* } */
+    if (false) { // hex dump for debuging
+        printf("buffer: start=%p, len=%lu\n", (void *) buffer, len);
+        for (size_t i = 0; i < cap;) {
+            printf("%6p: ", (void *) i);
+            for (size_t j = 0; j < 16 && i < cap; ++i, ++j) {
+                if (j % 2 == 0) printf(" ");
+                printf("%02x", buffer[i]);
+            }
+            printf("\n");
+        }
+    }
 
     {
         struct coder coder = make_decoder(vals, buffer, buffer + len);
 
         struct rill_kv kv = {0};
-        for (size_t i = 0; i < pairs.len; ++i) {
+        for (size_t i = 0; i < pairs->len; ++i) {
             assert(coder_decode(&coder, &kv));
-            assert(rill_kv_cmp(&kv, &pairs.data[i]) == 0);
+            assert(rill_kv_cmp(&kv, &pairs->data[i]) == 0);
         }
 
         assert(coder_decode(&coder, &kv));
@@ -177,6 +180,7 @@ void check_coder(struct rill_pairs pairs)
     }
 
     free(vals);
+    free(pairs);
 }
 
 
@@ -191,15 +195,14 @@ bool test_coder(void)
     struct rng rng = rng_make(0);
     for (size_t iterations = 0; iterations < 100; ++iterations) {
 
-        struct rill_pairs pairs = {0};
+        struct rill_pairs *pairs = rill_pairs_new(1000);
         for (size_t i = 0; i < 1000; ++i) {
             uint64_t key = rng_gen_range(&rng, 1, 500);
             uint64_t val = rng_gen_range(&rng, 1, 100);
-            rill_pairs_push(&pairs, key, val);
+            pairs = rill_pairs_push(pairs, key, val);
         }
 
         check_coder(pairs);
-        rill_pairs_free(&pairs);
     }
 
     return true;

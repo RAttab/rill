@@ -26,5 +26,5 @@ gcc -o rill_load "${PREFIX}/src/load.c" librill.a $CFLAGS
 gcc -o rill_query "${PREFIX}/src/query.c" librill.a $CFLAGS
 gcc -o rill_dump "${PREFIX}/src/dump.c" librill.a $CFLAGS
 
-gcc -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS
-./test_coder
+gcc -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
+gcc -o test_rill "${PREFIX}/test/rill_test.c" librill.a $CFLAGS && ./test_rill

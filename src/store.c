@@ -319,7 +319,7 @@ bool rill_store_write(
     store.head->keys = coder.keys;
     store.head->pairs = coder.pairs;
 
-    writer_close(&store, (uintptr_t) coder.end - (uintptr_t) store.vma);
+    writer_close(&store, (uintptr_t) coder.it - (uintptr_t) store.vma);
     free(vals);
     return true;
 
@@ -356,6 +356,8 @@ bool rill_store_merge(
         cap += list[i]->vma_len;
         it_len++;
     }
+
+    assert(it_len);
 
     struct rill_store store = {0};
     if (!writer_open(&store, file, cap, ts, quant)) {
@@ -397,12 +399,13 @@ bool rill_store_merge(
     store.head->pairs = encoder.pairs;
 
     if (!coder_finish(&encoder)) goto fail_coder;
-    writer_close(&store, (uintptr_t) encoder.end - (uintptr_t) store.vma);
+    writer_close(&store, (uintptr_t) encoder.it - (uintptr_t) store.vma);
 
     for (size_t i = 0; i < list_len; ++i) {
         if (list[i]) vma_dont_need(list[i]);
     }
 
+    free(vals);
     return true;
 
   fail_coder:
@@ -433,7 +436,7 @@ size_t rill_store_quant(struct rill_store *store)
     return store->head->quant;
 }
 
-bool rill_store_scan_key(
+struct rill_pairs *rill_store_scan_key(
         struct rill_store *store,
         const rill_key_t *keys, size_t len,
         struct rill_pairs *out)
@@ -441,6 +444,7 @@ bool rill_store_scan_key(
     vma_will_need(store);
 
     struct rill_kv kv = {0};
+    struct rill_pairs *result = out;
     struct coder coder = store_decoder(store);
 
     while (true) {
@@ -449,19 +453,21 @@ bool rill_store_scan_key(
 
         for (size_t j = 0; j < len; ++j) {
             if (kv.key != keys[j]) continue;
-            if (!rill_pairs_push(out, kv.key, kv.val)) goto fail;
+
+            result = rill_pairs_push(result, kv.key, kv.val);
+            if (!result) return NULL;
         }
     }
 
     vma_dont_need(store);
-    return true;
+    return result;
 
   fail:
     vma_dont_need(store);
-    return false;
+    return NULL;
 }
 
-bool rill_store_scan_val(
+struct rill_pairs *rill_store_scan_val(
         struct rill_store *store,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out)
@@ -469,6 +475,7 @@ bool rill_store_scan_val(
     vma_will_need(store);
 
     struct rill_kv kv = {0};
+    struct rill_pairs *result = out;
     struct coder coder = store_decoder(store);
 
     for (size_t i = 0; i < store->head->pairs; ++i) {
@@ -477,16 +484,18 @@ bool rill_store_scan_val(
 
         for (size_t j = 0; j < len; ++j) {
             if (kv.val != vals[j]) continue;
-            if (!rill_pairs_push(out, kv.key, kv.val)) goto fail;
+
+            result = rill_pairs_push(result, kv.key, kv.val);
+            if (!result) return NULL;
         }
     }
 
     vma_dont_need(store);
-    return true;
+    return result;
 
   fail:
     vma_dont_need(store);
-    return false;
+    return NULL;
 }
 
 void rill_store_print_head(struct rill_store *store)

@@ -28,12 +28,12 @@ struct rill_kv
     rill_val_t val;
 };
 
-static inline bool rill_kv_nil(const struct rill_kv *kv)
+inline bool rill_kv_nil(const struct rill_kv *kv)
 {
     return !kv->key && !kv->val;
 }
 
-static inline int rill_kv_cmp(const struct rill_kv *lhs, const struct rill_kv *rhs)
+inline int rill_kv_cmp(const struct rill_kv *lhs, const struct rill_kv *rhs)
 {
     if (lhs->key < rhs->key) return -1;
     if (lhs->key > rhs->key) return +1;
@@ -52,20 +52,24 @@ static inline int rill_kv_cmp(const struct rill_kv *lhs, const struct rill_kv *r
 struct rill_pairs
 {
     size_t len, cap;
-    struct rill_kv *data;
+    struct rill_kv data[];
 };
 
+struct rill_pairs *rill_pairs_new(size_t cap);
 void rill_pairs_free(struct rill_pairs *pairs);
-bool rill_pairs_reset(struct rill_pairs *pairs, size_t cap);
-bool rill_pairs_push(struct rill_pairs *pairs, rill_key_t key, rill_val_t val);
+void rill_pairs_clear(struct rill_pairs *pairs);
+
+struct rill_pairs *rill_pairs_push(
+        struct rill_pairs *pairs, rill_key_t key, rill_val_t val);
+
 void rill_pairs_compact(struct rill_pairs *pairs);
 
-bool rill_pairs_scan_key(
+struct rill_pairs *rill_pairs_scan_key(
         const struct rill_pairs *pairs,
         const rill_key_t *keys, size_t len,
         struct rill_pairs *out);
 
-bool rill_pairs_scan_val(
+struct rill_pairs *rill_pairs_scan_val(
         const struct rill_pairs *pairs,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
@@ -99,11 +103,11 @@ const char * rill_store_file(struct rill_store *store);
 rill_ts_t rill_store_ts(struct rill_store *store);
 size_t rill_store_quant(struct rill_store *store);
 
-bool rill_store_scan_key(
+struct rill_pairs *rill_store_scan_key(
         struct rill_store *store,
         const rill_key_t *keys, size_t len,
         struct rill_pairs *out);
-bool rill_store_scan_val(
+struct rill_pairs *rill_store_scan_val(
         struct rill_store *store,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
@@ -124,5 +128,12 @@ void rill_close(struct rill *db);
 bool rill_ingest(struct rill *db, rill_key_t key, rill_val_t val);
 bool rill_rotate(struct rill *db, rill_ts_t now);
 
-void rill_query_key(struct rill *db, rill_key_t *keys, size_t len, struct rill_pairs *out);
-void rill_query_val(struct rill *db, rill_val_t *vals, size_t len, struct rill_pairs *out);
+struct rill_pairs *rill_query_key(
+        struct rill *db,
+        const rill_key_t *keys, size_t len,
+        struct rill_pairs *out);
+
+struct rill_pairs *rill_query_val(
+        struct rill *db,
+        const rill_val_t *vals, size_t len,
+        struct rill_pairs *out);

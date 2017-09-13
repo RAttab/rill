@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     if (!db) return 1;
 
     enum {
-        keys_per_sec = 1 * 1000,
+        keys_per_sec = 200,
         seconds = 3 * 31 * 24 * 60 * 60,
 
         keys_range = 1 * 1000 * 1000 * 1000,

@@ -15,9 +15,27 @@
 #include <string.h>
 #include <assert.h>
 
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
+
 
 // -----------------------------------------------------------------------------
-// utils
+// time
+// -----------------------------------------------------------------------------
+
+enum
+{
+    sec   = 1,
+    min   = 60 * sec,
+    hour  = 60 * min,
+    day   = 24 * hour,
+    month = 31 * day,
+};
+
+
+// -----------------------------------------------------------------------------
+// pairs
 // -----------------------------------------------------------------------------
 
 struct rill_kv kv(rill_key_t key, rill_val_t val)
@@ -31,10 +49,35 @@ struct rill_kv kv(rill_key_t key, rill_val_t val)
         make_pair_impl(kvs, sizeof(kvs) / sizeof(kvs[0]));      \
     })
 
-struct rill_pairs make_pair_impl(const struct rill_kv *kv, size_t len)
+struct rill_pairs *make_pair_impl(const struct rill_kv *kv, size_t len)
 {
-    struct rill_pairs pairs = {0};
+    struct rill_pairs *pairs = rill_pairs_new(len);
     for (size_t i = 0; i < len; ++i)
-        rill_pairs_push(&pairs, kv[i].key, kv[i].val);
+        pairs = rill_pairs_push(pairs, kv[i].key, kv[i].val);
     return pairs;
+}
+
+
+// -----------------------------------------------------------------------------
+// rm
+// -----------------------------------------------------------------------------
+
+void rm(const char *path)
+{
+    DIR *dir = opendir(path);
+    if (!dir) return;
+
+    struct dirent stream, *entry;
+    while (true) {
+        if (readdir_r(dir, &stream, &entry) == -1) abort();
+        else if (!entry) break;
+        else if (entry->d_type != DT_REG) continue;
+
+        char file[PATH_MAX];
+        snprintf(file, sizeof(file), "%s/%s", path, entry->d_name);
+        unlink(file);
+    }
+
+    closedir(dir);
+    rmdir(path);
 }
