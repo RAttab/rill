@@ -16,6 +16,14 @@
 
 
 // -----------------------------------------------------------------------------
+// kv
+// -----------------------------------------------------------------------------
+
+extern inline bool rill_kv_nil(const struct rill_kv *);
+extern inline int rill_kv_cmp(const struct rill_kv *, const struct rill_kv *);
+
+
+// -----------------------------------------------------------------------------
 // config
 // -----------------------------------------------------------------------------
 
@@ -95,26 +103,14 @@ struct rill * rill_open(const char *dir)
         goto fail_alloc_dir;
     }
 
-    db->acc = calloc(1, sizeof(*db->acc));
-    if (!db->acc) {
-        fail("unable to allocate memory for '%s'", dir);
+    if (!(db->acc = rill_pairs_new(1 * 1000 * 1000))) {
+        fail("unable to allocate pairs for '%s'", dir);
         goto fail_alloc_acc;
     }
 
-    db->dump = calloc(1, sizeof(*db->dump));
-    if (!db->dump) {
-        fail("unable to allocate memory for '%s'", dir);
+    if (!(db->dump = rill_pairs_new(1 * 1000 * 1000))) {
+        fail("unable to allocate pairs for '%s'", dir);
         goto fail_alloc_dump;
-    }
-
-    if (!rill_pairs_reset(db->acc, 1 *1000 * 1000)) {
-        fail("unable to allocate pairs for '%s'", dir);
-        goto fail_pairs;
-    }
-
-    if (!rill_pairs_reset(db->dump, 1 *1000 * 1000)) {
-        fail("unable to allocate pairs for '%s'", dir);
-        goto fail_pairs;
     }
 
     if (mkdir(dir, 0775) == -1 && errno != EEXIST) {
@@ -150,12 +146,9 @@ struct rill * rill_open(const char *dir)
     closedir(dir_handle);
   fail_dir:
   fail_mkdir:
-  fail_pairs:
     rill_pairs_free(db->dump);
-    free(db->dump);
   fail_alloc_dump:
     rill_pairs_free(db->acc);
-    free(db->acc);
   fail_alloc_acc:
     free((char *) db->dir);
   fail_alloc_dir:
@@ -178,12 +171,10 @@ void rill_close(struct rill *db)
         if (db->monthly[i]) rill_store_close(db->monthly[i]);
     }
 
-    rill_pairs_free(db->acc);
-    rill_pairs_free(db->dump);
 
     free((char *) db->dir);
-    free(db->dump);
-    free(db->acc);
+    rill_pairs_free(db->acc);
+    rill_pairs_free(db->dump);
     free(db);
 }
 
@@ -192,20 +183,29 @@ void rill_close(struct rill *db)
 // ingest
 // -----------------------------------------------------------------------------
 
-bool rill_ingest(struct rill *db, rill_ts_t now, rill_key_t key, rill_val_t val)
+bool rill_ingest(struct rill *db, rill_key_t key, rill_val_t val)
 {
-    (void) now;
+    if (!key) {
+        fail("invalid nil key '%lu'", key);
+        return false;
+    }
 
-    bool ret;
+    if (!val) {
+        fail("invalid nil value '%lu'", val);
+        return false;
+    }
+
+    struct rill_pairs *result;
     {
         lock(&db->lock);
 
-        ret = rill_pairs_push(db->acc, key, val);
+        result = rill_pairs_push(db->acc, key, val);
 
         unlock(&db->lock);
     }
 
-    return ret;
+    if (result) db->acc = result;
+    return result != NULL;
 }
 
 
@@ -232,6 +232,11 @@ static bool rotate_monthly(
         (void) rill_store_rm(*store);
         *store = NULL;
     }
+
+    bool all_null = true;
+    for (size_t i = 0; i < len; ++i) all_null = all_null && !list[i];
+    if (all_null) return true;
+
     if (!rill_store_merge(file, ts, quant_month, list, len)) return false;
     if (!(*store = rill_store_open(file))) return false;
 
@@ -256,6 +261,11 @@ static bool rotate_daily(
             (ts / quant_day) % days);
 
     assert(!*store);
+
+    bool all_null = true;
+    for (size_t i = 0; i < len; ++i) all_null = all_null && !list[i];
+    if (all_null) return true;
+
     if (!rill_store_merge(file, ts, quant_day, list, len)) return false;
     if (!(*store = rill_store_open(file))) return false;
 
@@ -287,20 +297,21 @@ static bool rotate_hourly(struct rill *db, struct rill_store **store, rill_ts_t 
     }
 
     assert(!*store);
-    if (!rill_store_write(file, ts, quant_hour, db->dump)) return false;
-    if (!(*store = rill_store_open(file))) return false;
+    if (db->dump->len) {
+        if (!rill_store_write(file, ts, quant_hour, db->dump)) return false;
+        if (!(*store = rill_store_open(file))) return false;
+    }
 
-    rill_pairs_reset(db->dump, db->dump->cap);
-
+    rill_pairs_clear(db->dump);
     return true;
 }
 
 bool rill_rotate(struct rill *db, rill_ts_t now)
 {
-    if (now / quant_month != db->ts / quant_month) {
-        size_t quant = db->ts / quant_month;
-        if (!rotate_monthly(db, &db->monthly[quant % months], db->ts, db->daily, days)) {
-            fail("unable to complete monthly rotation '%lu'", quant);
+    if (now / quant_hour != db->ts / quant_hour) {
+        size_t quant = db->ts / quant_hour;
+        if (!rotate_hourly(db, &db->hourly[(now / quant_hour) % hours], db->ts)) {
+            fail("unable to complete hourly rotation '%lu'", quant);
             return false;
         }
     }
@@ -313,10 +324,10 @@ bool rill_rotate(struct rill *db, rill_ts_t now)
         }
     }
 
-    if (now / quant_hour != db->ts / quant_hour) {
-        size_t quant = db->ts / quant_hour;
-        if (!rotate_hourly(db, &db->hourly[(now / quant_hour) % hours], db->ts)) {
-            fail("unable to complete hourly rotation '%lu'", quant);
+    if (now / quant_month != db->ts / quant_month) {
+        size_t quant = db->ts / quant_month;
+        if (!rotate_monthly(db, &db->monthly[quant % months], db->ts, db->daily, days)) {
+            fail("unable to complete monthly rotation '%lu'", quant);
             return false;
         }
     }
@@ -330,42 +341,62 @@ bool rill_rotate(struct rill *db, rill_ts_t now)
 // query
 // -----------------------------------------------------------------------------
 
-void rill_query_key(struct rill *db, rill_key_t *keys, size_t len, struct rill_pairs *out)
+struct rill_pairs *rill_query_key(
+        struct rill *db,
+        const rill_key_t *keys, size_t len,
+        struct rill_pairs *out)
 {
+    struct rill_pairs *result = out;
+    if (!len) return result;
+
     for (size_t i = 0; i < hours; ++i) {
         if (!db->hourly[i]) continue;
-        rill_store_scan_key(db->hourly[i], keys, len, out);
+        result = rill_store_scan_key(db->hourly[i], keys, len, result);
+        if (!result) return NULL;
     }
 
     for (size_t i = 0; i < days; ++i) {
         if (!db->daily[i]) continue;
-        rill_store_scan_key(db->daily[i], keys, len, out);
+        result = rill_store_scan_key(db->daily[i], keys, len, result);
+        if (!result) return NULL;
     }
 
     for (size_t i = 0; i < months; ++i) {
         if (!db->monthly[i]) continue;
-        rill_store_scan_key(db->monthly[i], keys, len, out);
+        result = rill_store_scan_key(db->monthly[i], keys, len, result);
+        if (!result) return NULL;
     }
 
-    rill_pairs_compact(out);
+    rill_pairs_compact(result);
+    return result;
 }
 
-void rill_query_val(struct rill *db, rill_val_t *vals, size_t len, struct rill_pairs *out)
+struct rill_pairs *rill_query_val(
+        struct rill *db,
+        const rill_val_t *vals, size_t len,
+        struct rill_pairs *out)
 {
+    struct rill_pairs *result = out;
+    if (!len) return result;
+
     for (size_t i = 0; i < hours; ++i) {
         if (!db->hourly[i]) continue;
-        rill_store_scan_val(db->hourly[i], vals, len, out);
+        result = rill_store_scan_val(db->hourly[i], vals, len, result);
+        if (!result) return result;
     }
 
     for (size_t i = 0; i < days; ++i) {
         if (!db->daily[i]) continue;
-        rill_store_scan_val(db->daily[i], vals, len, out);
+        result = rill_store_scan_val(db->daily[i], vals, len, result);
+        if (!result) return result;
     }
 
     for (size_t i = 0; i < months; ++i) {
         if (!db->monthly[i]) continue;
-        rill_store_scan_val(db->monthly[i], vals, len, out);
+        result = rill_store_scan_val(db->monthly[i], vals, len, result);
+        if (!result) return result;
     }
 
-    rill_pairs_compact(out);
+    rill_pairs_compact(result);
+    return result;
 }

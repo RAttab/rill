@@ -4,6 +4,7 @@
 */
 
 #include "rill.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,42 +15,52 @@
 // pairs
 // -----------------------------------------------------------------------------
 
+static size_t adjust_cap(size_t cap, size_t len)
+{
+    while (len > cap) cap *= 2;
+    return cap;
+}
+
+struct rill_pairs *rill_pairs_new(size_t cap)
+{
+    cap = adjust_cap(1, cap);
+
+    struct rill_pairs *pairs =
+        calloc(1, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
+    if (!pairs) return NULL;
+
+    pairs->cap = cap;
+    return pairs;
+}
+
+
 void rill_pairs_free(struct rill_pairs *pairs)
 {
-    free(pairs->data);
     free(pairs);
 }
 
-static bool resize(struct rill_pairs *pairs, size_t len)
-{
-    if (len <= pairs->cap) return true;
 
-    size_t cap = pairs->cap ? pairs->cap : 16;
-    while (cap < len) cap *= 2;
-
-    void *ret = realloc(pairs->data, cap * sizeof(*pairs->data));
-    if (!ret) return false;
-
-    pairs->data = ret;
-    pairs->cap = cap;
-
-    return true;
-}
-
-bool rill_pairs_reset(struct rill_pairs *pairs, size_t cap)
+void rill_pairs_clear(struct rill_pairs *pairs)
 {
     pairs->len = 0;
-    return resize(pairs, cap);
 }
 
-bool rill_pairs_push(struct rill_pairs *pairs, rill_key_t key, rill_val_t val)
+struct rill_pairs *rill_pairs_push(
+        struct rill_pairs *pairs, rill_key_t key, rill_val_t val)
 {
-    if (!resize(pairs, pairs->len + 1)) return false;
+    if (rill_unlikely(pairs->len + 1 > pairs->cap)) {
+        size_t cap = adjust_cap(pairs->cap, pairs->len + 1);
+
+        pairs = realloc(pairs, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
+        if (!pairs) return NULL;
+
+        pairs->cap = cap;
+    }
 
     pairs->data[pairs->len] = (struct rill_kv) { .key = key, .val = val };
     pairs->len++;
 
-    return true;
+    return pairs;
 }
 
 static int kv_cmp(const void *lhs, const void *rhs)
@@ -73,38 +84,46 @@ void rill_pairs_compact(struct rill_pairs *pairs)
     pairs->len = j + 1;
 }
 
-bool rill_pairs_scan_key(
+struct rill_pairs *rill_pairs_scan_key(
         const struct rill_pairs *pairs,
         const rill_key_t *keys, size_t len,
         struct rill_pairs *out)
 {
+    struct rill_pairs *result = out;
+
     for (size_t i = 0; i < pairs->len; ++i) {
-        struct rill_kv *kv = &pairs->data[i];
+        const struct rill_kv *kv = &pairs->data[i];
 
         for (size_t j = 0; j < len; ++j) {
             if (kv->key != keys[j]) continue;
-            if (!rill_pairs_push(out, kv->key, kv->val)) return false;
+
+            result = rill_pairs_push(result, kv->key, kv->val);
+            if (!result) return NULL;
         }
     }
 
-    return true;
+    return result;
 }
 
-bool rill_pairs_scan_val(
+struct rill_pairs *rill_pairs_scan_val(
         const struct rill_pairs *pairs,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out)
 {
+    struct rill_pairs *result = out;
+
     for (size_t i = 0; i < pairs->len; ++i) {
-        struct rill_kv *kv = &pairs->data[i];
+        const struct rill_kv *kv = &pairs->data[i];
 
         for (size_t j = 0; j < len; ++j) {
             if (kv->val != vals[j]) continue;
-            if (!rill_pairs_push(out, kv->key, kv->val)) return false;
+
+            result = rill_pairs_push(result, kv->key, kv->val);
+            if (!result) return NULL;
         }
     }
 
-    return true;
+    return result;
 }
 
 void rill_pairs_print(const struct rill_pairs *pairs)
@@ -112,16 +131,18 @@ void rill_pairs_print(const struct rill_pairs *pairs)
     const rill_key_t no_key = -1ULL;
     rill_key_t key = no_key;
 
+    printf("pairs(%p, %lu, %lu):\n", (void *) pairs, pairs->len, pairs->cap);
+
     for (size_t i = 0; i < pairs->len; ++i) {
-        struct rill_kv *kv = &pairs->data[i];
+        const struct rill_kv *kv = &pairs->data[i];
 
         if (kv->key == key) fprintf(stderr, ", %lu", kv->val);
         else {
             if (key != no_key) fprintf(stderr, "]\n");
-            fprintf(stderr, "%p: [ %lu", (void *) kv->key, kv->val);
+            fprintf(stderr, "  %p: [ %lu", (void *) kv->key, kv->val);
             key = kv->key;
         }
     }
 
-    fprintf(stderr, " ]\n");
+    if (pairs->len) fprintf(stderr, " ]\n");
 }
