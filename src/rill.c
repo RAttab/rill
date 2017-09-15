@@ -310,7 +310,7 @@ bool rill_rotate(struct rill *db, rill_ts_t now)
 {
     if (now / quant_hour != db->ts / quant_hour) {
         size_t quant = db->ts / quant_hour;
-        if (!rotate_hourly(db, &db->hourly[(now / quant_hour) % hours], db->ts)) {
+        if (!rotate_hourly(db, &db->hourly[quant % hours], db->ts)) {
             fail("unable to complete hourly rotation '%lu'", quant);
             return false;
         }
