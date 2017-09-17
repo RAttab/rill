@@ -48,8 +48,8 @@ int main(int argc, char **argv)
 
     enum {
         keys_per_sec = 200,
-        seconds = 3 * month,
-        rotation_rate = 10 * min,
+        seconds = 3 * month_secs,
+        rotation_rate = 10 * min_secs,
 
         keys_range = 1 * 1000 * 1000 * 1000,
         vals_range = 10 * 1000,

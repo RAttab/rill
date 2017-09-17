@@ -17,18 +17,18 @@ bool test_rotate(void)
     rm(dir);
 
     const uint64_t key = 1;
-    enum { step = 10 * min };
+    enum { step = 10 * min_secs };
 
     {
         struct rill_acc *acc = rill_acc_open(dir, 1);
 
-        for (rill_ts_t ts = 0; ts < 13 * month; ts += step) {
+        for (rill_ts_t ts = 0; ts < 13 * month_secs; ts += step) {
             rill_acc_ingest(acc, key, ts + 1);
             rill_rotate(dir, ts);
         }
 
         rill_acc_close(acc);
-        rill_rotate(dir, 13 * month);
+        rill_rotate(dir, 13 * month_secs);
     }
 
     {
@@ -37,7 +37,7 @@ bool test_rotate(void)
         rill_query_close(query);
 
         size_t i = 0;
-        for (rill_ts_t ts = 0; ts < 13 * month; ts += step) {
+        for (rill_ts_t ts = 0; ts < 13 * month_secs; ts += step) {
             assert(pairs->data[i].key == key);
             assert(pairs->data[i].val == ts + 1);
             ++i;
@@ -47,7 +47,7 @@ bool test_rotate(void)
     }
 
     for (size_t i = 1; i <= 6; ++i)
-        rill_rotate(dir, (13 + i) * month);
+        rill_rotate(dir, (13 + i) * month_secs);
 
     {
         struct rill_query *query = rill_query_open(dir);
@@ -56,7 +56,7 @@ bool test_rotate(void)
 
         for (size_t i = 0; i < pairs->len; ++i) {
             assert(pairs->data[i].key == key);
-            assert(pairs->data[i].val >= (5 * month) + 1);
+            assert(pairs->data[i].val >= (5 * month_secs) + 1);
         }
 
         rill_pairs_free(pairs);

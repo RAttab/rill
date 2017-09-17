@@ -27,18 +27,19 @@
 
 enum
 {
-    hours = 24,
-    days = 31,
-    months = 13,
-};
+    mins_in_hour = 60,
+    hours_in_day = 24,
+    days_in_week = 8, // more closely approximates a month
+    weeks_in_month = 4,
+    months_in_expire = 13,
 
-enum
-{
-    min = 60,
-    hour = 60 * min,
-    day = hours * hour,
-    month = days * day,
-    expiration = months * month,
+    sec_secs = 1,
+    min_secs = 60 * sec_secs,
+    hour_secs = mins_in_hour * min_secs,
+    day_secs = hours_in_day * hour_secs,
+    week_secs = days_in_week * day_secs,
+    month_secs = weeks_in_month * week_secs,
+    expire_secs = months_in_expire * month_secs,
 };
 
 

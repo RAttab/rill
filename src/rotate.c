@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <limits.h>
 
+
 // -----------------------------------------------------------------------------
 // rotate
 // -----------------------------------------------------------------------------
@@ -32,11 +33,11 @@ static void rotate_acc(const char *dir, rill_ts_t now)
 static ssize_t expire(rill_ts_t now, struct rill_store **list, ssize_t len)
 {
     if (len < 0) return len;
-    if (now < expiration) return len; // mostly for tests.
+    if (now < expire_secs) return len; // mostly for tests.
 
     size_t i = 0;
     for (; i < (size_t) len; ++i) {
-        if (rill_store_ts(list[i]) < (now - expiration)) break;
+        if (rill_store_ts(list[i]) < (now - expire_secs)) break;
     }
 
     size_t end = i;
@@ -60,15 +61,23 @@ static struct rill_store *merge(
         return result;
     }
 
+    rill_ts_t month = ts / month_secs;
+    rill_ts_t week = (ts / week_secs) % weeks_in_month;
+    rill_ts_t day = (ts / day_secs) % days_in_week;
+    rill_ts_t hour = (ts / hour_secs) % hours_in_day;
+
     char file[PATH_MAX];
-    if (quant == hour)
-        snprintf(file, sizeof(file), "%s/%05lu-%02lu-%02lu.rill",
-                dir, ts / month, (ts / day) % days, (ts / hour) % hours);
-    else if (quant == day)
-        snprintf(file, sizeof(file), "%s/%05lu-%02lu.rill",
-                dir, ts / month, (ts / day) % days);
-    else if (quant == month)
-        snprintf(file, sizeof(file), "%s/%05lu.rill", dir, ts / month);
+    if (quant == hour_secs)
+        snprintf(file, sizeof(file), "%s/%05lu-%02lu-%02lu-%02lu.rill",
+                dir, month, week, day, hour);
+    else if (quant == day_secs)
+        snprintf(file, sizeof(file), "%s/%05lu-%02lu-%02lu.rill", dir, month, week, day);
+    else if (quant == week_secs)
+        snprintf(file, sizeof(file), "%s/%05lu-%02lu.rill", dir, month, week);
+    else if (quant == month_secs)
+        snprintf(file, sizeof(file), "%s/%05lu.rill", dir, month);
+    else assert(false);
+
 
     if (!rill_store_merge(file, ts, quant, list, len)) return NULL;
 
@@ -156,9 +165,10 @@ bool rill_rotate(const char *dir, rill_ts_t now)
 
     ssize_t len = list_len;
     len = expire(now, list, len);
-    len = merge_quant(dir, now, hour, list, len);
-    len = merge_quant(dir, now, day, list, len);
-    len = merge_quant(dir, now, month, list, len);
+    len = merge_quant(dir, now, hour_secs, list, len);
+    len = merge_quant(dir, now, day_secs, list, len);
+    len = merge_quant(dir, now, week_secs, list, len);
+    len = merge_quant(dir, now, month_secs, list, len);
 
     for (size_t i = 0; i < list_len; ++i) {
         if (list[i]) rill_store_close(list[i]);
