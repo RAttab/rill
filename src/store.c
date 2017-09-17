@@ -494,14 +494,14 @@ struct rill_pairs *rill_store_scan_val(
 
 void rill_store_print_head(struct rill_store *store)
 {
-    fprintf(stderr, "%s\n", store->file);
-    fprintf(stderr, "magic:   0x%x\n", store->head->magic);
-    fprintf(stderr, "version: %u\n", store->head->version);
-    fprintf(stderr, "ts:      %lu\n", store->head->ts);
-    fprintf(stderr, "quant:   %lu\n", store->head->quant);
-    fprintf(stderr, "keys:    %lu\n", store->head->keys);
-    fprintf(stderr, "vals:    %lu\n", store->vals->len);
-    fprintf(stderr, "pairs:   %lu\n", store->head->pairs);
+    printf("%s\n", store->file);
+    printf("magic:   0x%x\n", store->head->magic);
+    printf("version: %u\n", store->head->version);
+    printf("ts:      %lu\n", store->head->ts);
+    printf("quant:   %lu\n", store->head->quant);
+    printf("keys:    %lu\n", store->head->keys);
+    printf("vals:    %lu\n", store->vals->len);
+    printf("pairs:   %lu\n", store->head->pairs);
 }
 
 void rill_store_print(struct rill_store *store)
@@ -518,15 +518,15 @@ void rill_store_print(struct rill_store *store)
         if (!coder_decode(&coder, &kv)) goto fail;
         if (rill_kv_nil(&kv)) break;
 
-        if (kv.key == key) fprintf(stderr, ", %lu", kv.val);
+        if (kv.key == key) printf(", %lu", kv.val);
         else {
-            if (key != no_key) fprintf(stderr, "]\n");
-            fprintf(stderr, "%p: [ %lu", (void *) kv.key, kv.val);
+            if (key != no_key) printf("]\n");
+            printf("%p: [ %lu", (void *) kv.key, kv.val);
             key = kv.key;
         }
     }
 
-    fprintf(stderr, " ]\n");
+    printf(" ]\n");
 
   fail:
     vma_dont_need(store);
