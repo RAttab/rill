@@ -8,9 +8,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <sys/types.h>
-#include <dirent.h>
 #include <limits.h>
 
 // -----------------------------------------------------------------------------
@@ -24,96 +24,41 @@ static void rotate_acc(const char *dir, rill_ts_t now)
 
     char file[PATH_MAX];
     snprintf(file, sizeof(file), "%s/%010lu.rill", dir, now);
-    printf("rotate: writing acc to '%s' with timestamp '%lu'\n", file, now);
 
     (void) rill_acc_write(acc, file, now);
     rill_acc_close(acc);
 }
 
-static size_t load_dir(const char *dir, struct rill_store **list, size_t cap)
+static ssize_t expire(rill_ts_t now, struct rill_store **list, ssize_t len)
 {
-    DIR *dir_handle = opendir(dir);
-    if (!dir_handle) return 0;
-
-    size_t len = 0;
-    struct dirent *entry = NULL;
-    while ((entry = readdir(dir_handle))) {
-        if (entry->d_type != DT_REG) continue;
-        if (!strcmp(entry->d_name, "acc")) continue;
-
-        char file[PATH_MAX];
-        snprintf(file, sizeof(file), "%s/%s", dir, entry->d_name);
-
-        list[len] = rill_store_open(file);
-        if (!list[len]) continue;
-
-        len++;
-        if (len == cap) {
-            fail("rotate: too many files to rotate in '%s'", dir);
-            break;
-        }
-    }
-
-    closedir(dir_handle);
-    return len;
-}
-
-static int store_cmp(const void *l, const void *r)
-{
-    const struct rill_store *const *lhs = l;
-    const struct rill_store *const *rhs = r;
-
-    if (rill_store_ts(*lhs) < rill_store_ts(*rhs)) return +1;
-    if (rill_store_ts(*lhs) > rill_store_ts(*rhs)) return -1;
-    return 0;
-}
-
-static size_t expire(struct rill_store **list, size_t len, rill_ts_t now)
-{
+    if (len < 0) return len;
     if (now < expiration) return len; // mostly for tests.
 
     size_t i = 0;
-    for (; i < len; ++i) {
+    for (; i < (size_t) len; ++i) {
         if (rill_store_ts(list[i]) < (now - expiration)) break;
     }
 
     size_t end = i;
-    for (; i < len; ++i) {
-        printf("rotate: expiring '%s' with timestamp '%lu < %lu'\n",
-                rill_store_file(list[i]), rill_store_ts(list[i]), (now - expiration));
+    for (; i < (size_t) len; ++i) {
         rill_store_rm(list[i]);
         list[i] = NULL;
     }
+
     return end;
 }
 
-static bool merge(
-        struct rill_store **list, size_t len, const char *dir, rill_ts_t now)
+static struct rill_store *merge(
+        const char *dir,
+        rill_ts_t ts, rill_ts_t quant,
+        struct rill_store **list, size_t len)
 {
-    rill_ts_t earliest = rill_store_ts(list[0]);
-
-    rill_ts_t quant = 0;
-    if (earliest / hour != now / hour) quant = hour;
-    if (earliest / day != now / day) quant = day;
-    if (earliest / month != now / month) quant = month;
-
-    printf("rotate: now=%lu, earliest=%lu, quant=%lu\n", now, earliest, quant);
-
-    if (!quant) return true;
-
-    rill_ts_t oldest = ((now / quant) - 1) * quant;
-    size_t merge_end = 0;
-    for (; merge_end < len; ++merge_end) {
-        if (rill_store_ts(list[merge_end]) < oldest) break;
-
-        printf("rotate: merging '%s' with timestamp '%lu >= %lu'\n",
-                rill_store_file(list[merge_end]),
-                rill_store_ts(list[merge_end]),
-                oldest);
+    assert(len > 0);
+    if (len == 1) {
+        struct rill_store *result = list[0];
+        list[0] = NULL;
+        return result;
     }
-    if (merge_end <= 1) return true;
-
-    rill_ts_t ts = oldest + quant - 1;
 
     char file[PATH_MAX];
     if (quant == hour)
@@ -125,40 +70,99 @@ static bool merge(
     else if (quant == month)
         snprintf(file, sizeof(file), "%s/%05lu.rill", dir, ts / month);
 
+    if (!rill_store_merge(file, ts, quant, list, len)) return NULL;
 
-    printf("rotate: merging to '%s' with timestamp '%lu'\n", file, ts);
-
-    if (!rill_store_merge(file, ts, quant, list, merge_end)) return false;
-
-    for (size_t i = 0; i < merge_end; ++i) {
-        printf("rotate: deleting '%s'\n", rill_store_file(list[i]));
+    for (size_t i = 0; i < len; ++i) {
         rill_store_rm(list[i]);
         list[i] = NULL;
     }
 
-    return true;
+    return rill_store_open(file);
 }
 
+static ssize_t merge_quant(
+        const char *dir,
+        rill_ts_t now, rill_ts_t quant,
+        struct rill_store **list, ssize_t len)
+{
+    if (len <= 1) return len;
+
+    size_t out_len = 0;
+    struct rill_store *out[(size_t) len];
+
+    size_t start = 0;
+    rill_ts_t current_quant = rill_store_ts(list[0]) / quant;
+
+    for (size_t i = 0; i < (size_t) len; i++) {
+        size_t end = i + 1;
+        assert(i >= start);
+        assert(end > start);
+
+        size_t next_ts = i + 1 != (size_t) len ? rill_store_ts(list[i + 1]) : -1UL;
+        if (next_ts / quant == current_quant) continue;
+
+        rill_ts_t earliest_ts = rill_store_ts(list[start]);
+        if (earliest_ts / quant != now / quant) {
+            struct rill_store *store = merge(dir, earliest_ts, quant, list + start, end - start);
+            if (!store) goto fail;
+            out[out_len++] = store;
+        }
+
+        // if a file is in the quant represented by now then we don't want to
+        // merge it as we're still filling in this quant. Additionally, if it's
+        // in our current quant then it will also be in all bigger quants so we
+        // can just forget these files for the rest of the rotation.
+        else {
+            for (size_t j = start; j < end; ++j) {
+                rill_store_close(list[j]);
+                list[j] = NULL;
+            }
+        }
+
+        current_quant = next_ts / quant;
+        start = i + 1;
+    }
+
+    for (size_t i = 0; i < (size_t) len; ++i) assert(!list[i]);
+    memcpy(list, out, out_len * sizeof(out[0]));
+    return out_len;
+
+  fail:
+    for (size_t i = 0; i < out_len; ++i)
+        rill_store_close(out[i]);
+
+    return -1;
+}
+
+static int store_cmp(const void *l, const void *r)
+{
+    const struct rill_store *const *lhs = l;
+    const struct rill_store *const *rhs = r;
+
+    // earliest (biggest) to oldest (smallest)
+    if (rill_store_ts(*lhs) < rill_store_ts(*rhs)) return +1;
+    if (rill_store_ts(*lhs) > rill_store_ts(*rhs)) return -1;
+    return 0;
+}
 
 bool rill_rotate(const char *dir, rill_ts_t now)
 {
-    printf("rotate: rotating '%s' at timestamp '%lu'\n", dir, now);
+    rotate_acc(dir, now);
 
     enum { cap = 1024 };
     struct rill_store *list[cap];
-    size_t len = load_dir(dir, list, cap);
-    qsort(list, len, sizeof(list[0]), store_cmp);
+    size_t list_len = rill_scan_dir(dir, list, cap);
+    qsort(list, list_len, sizeof(list[0]), store_cmp);
 
-    // We don't want the latest file in the merge list.
-    rotate_acc(dir, now);
+    ssize_t len = list_len;
+    len = expire(now, list, len);
+    len = merge_quant(dir, now, hour, list, len);
+    len = merge_quant(dir, now, day, list, len);
+    len = merge_quant(dir, now, month, list, len);
 
-    len = expire(list, len, now);
-    if (!len) return true;
-
-    bool ret = merge(list, len, dir, now);
-    for (size_t i = 0; i < len; ++i) {
+    for (size_t i = 0; i < list_len; ++i) {
         if (list[i]) rill_store_close(list[i]);
     }
 
-    return ret;
+    return len >= 0;
 }

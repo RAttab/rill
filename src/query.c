@@ -8,12 +8,11 @@
 
 #include <assert.h>
 #include <stdlib.h>
-#include <stdatomic.h>
-#include <dirent.h>
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <limits.h>
 
 
 // -----------------------------------------------------------------------------
@@ -42,32 +41,11 @@ struct rill_query * rill_query_open(const char *dir)
         goto fail_alloc_dir;
     }
 
-    DIR *dir_handle = opendir(dir);
-    if (!dir_handle) {
-        fail_errno("unable to open dir '%s'", dir);
-        goto fail_dir;
-    }
-
-    struct dirent *entry;
-    while ((entry = readdir(dir_handle))) {
-        if (entry->d_type != DT_REG) continue;
-        if (!strcmp(entry->d_name, "acc")) continue;
-
-        char file[PATH_MAX];
-        snprintf(file, sizeof(file), "%s/%s", query->dir, entry->d_name);
-
-        query->list[query->len] = rill_store_open(file);
-        if (!query->list[query->len]) continue;
-
-        query->len++;
-    }
-
-    closedir(dir_handle);
+    size_t cap = sizeof(query->list) / sizeof(query->list[0]);
+    query->len = rill_scan_dir(query->dir, query->list, cap);
 
     return query;
 
-    closedir(dir_handle);
-  fail_dir:
     free((char *) query->dir);
   fail_alloc_dir:
     free(query);

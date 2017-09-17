@@ -61,6 +61,10 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
 {
     if (cap != rill_acc_read_only && cap < min_cap) cap = min_cap;
 
+    // Add enough leeway to avoid contention between the reader and the writer.
+    // some might say this is an excessive amount of leeway but I don't care.
+    cap *= 2;
+
     struct rill_acc *acc = calloc(1, sizeof(*acc));
     if (!acc) {
         fail("unable to allocate memory for '%s'", dir);
@@ -101,12 +105,21 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
         goto fail_open;
     }
 
-    acc->vma_len = to_vma_len(sizeof(*acc->head) + cap * sizeof(*acc->data));
     if (create) {
+        acc->vma_len = to_vma_len(sizeof(*acc->head) + cap * sizeof(*acc->data));
         if (ftruncate(acc->fd, acc->vma_len) == -1) {
             fail_errno("unable to ftruncate '%s' to len '%lu'", file, acc->vma_len);
             goto fail_truncate;
         }
+    }
+    else {
+        size_t len = stat_ret.st_size;
+        if (len < sizeof(struct header)) {
+            fail("invalid size for '%s'", file);
+            goto fail_size;
+        }
+
+        acc->vma_len = to_vma_len(len);
     }
 
     acc->vma = mmap(NULL, acc->vma_len, PROT_READ | PROT_WRITE, MAP_SHARED, acc->fd, 0);
@@ -141,6 +154,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
   fail_magic:
     munmap(acc->vma, acc->vma_len);
   fail_mmap:
+  fail_size:
   fail_truncate:
     close(acc->fd);
   fail_open:
@@ -163,13 +177,16 @@ void rill_acc_close(struct rill_acc *acc)
 
 void rill_acc_ingest(struct rill_acc *acc, rill_key_t key, rill_val_t val)
 {
-    size_t read = atomic_load_explicit(&acc->head->read, memory_order_relaxed);
-    size_t index = read % acc->head->len;
+    assert(key && val);
 
-    acc->data[index].key = key;
-    acc->data[index].val = val;
+    size_t write = atomic_load_explicit(&acc->head->write, memory_order_relaxed);
+    size_t index = write % acc->head->len;
+    struct kv *kv = &acc->data[index];
 
-    atomic_store_explicit(&acc->head->read, read + 1, memory_order_release);
+    kv->key = key;
+    kv->val = val;
+
+    atomic_store_explicit(&acc->head->write, write + 1, memory_order_release);
 }
 
 bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
@@ -180,22 +197,26 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
         return false;
     }
 
-    size_t start = atomic_load_explicit(&acc->head->write, memory_order_acquire);
-    size_t end = atomic_load_explicit(&acc->head->read, memory_order_acquire);
-    if (start == end) return true;
+    size_t start = atomic_load_explicit(&acc->head->read, memory_order_acquire);
+    size_t end = atomic_load_explicit(&acc->head->write, memory_order_acquire);
+    if (start == end) goto done;
     assert(start < end);
 
-    if (end - start >= acc->head->len) {
-        printf("acc lost '%lu' events\n", (end - start) - acc->head->len);
-        size_t leeway = min_cap / 2; // to avoid contentention between reader and writer
-        start = end - acc->head->len + leeway;
+    if (end - start > acc->head->len) {
+        printf("acc lost '%lu' events: read=%lu, write=%lu, cap=%lu\n",
+                (end - start) - acc->head->len, start, end, acc->head->len);
+        start = end - acc->head->len;
     }
 
     struct rill_pairs *ret = NULL;
     for (size_t i = start; i < end; ++i) {
         size_t index = i % acc->head->len;
+        struct kv *kv = &acc->data[index];
 
-        ret = rill_pairs_push(pairs, acc->data[index].key, acc->data[index].val);
+        /* printf("read: [%lu] %lu/%lu -> %p{%lu, %lu}\n", */
+        /*         i, index, acc->head->len, (void *) kv, kv->key, kv->val); */
+
+        ret = rill_pairs_push(pairs, kv->key, kv->val);
         assert(ret == pairs);
     }
 
@@ -204,10 +225,13 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
         goto fail_write;
     }
 
-    atomic_store_explicit(&acc->head->write, end, memory_order_release);
+    atomic_store_explicit(&acc->head->read, end, memory_order_release);
+
+  done:
+    rill_pairs_free(pairs);
     return true;
 
   fail_write:
-    free(pairs);
+    rill_pairs_free(pairs);
     return false;
 }

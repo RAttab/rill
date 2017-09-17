@@ -56,6 +56,8 @@ void rill_pairs_clear(struct rill_pairs *pairs)
 struct rill_pairs *rill_pairs_push(
         struct rill_pairs *pairs, rill_key_t key, rill_val_t val)
 {
+    assert(key && val);
+
     if (rill_unlikely(pairs->len + 1 > pairs->cap)) {
         size_t cap = adjust_cap(pairs->cap, pairs->len + 1);
 

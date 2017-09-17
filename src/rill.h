@@ -156,3 +156,10 @@ struct rill_pairs *rill_query_val(
         struct rill_query *query,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
+
+
+// -----------------------------------------------------------------------------
+// misc
+// -----------------------------------------------------------------------------
+
+size_t rill_scan_dir(const char *dir, struct rill_store **list, size_t cap);

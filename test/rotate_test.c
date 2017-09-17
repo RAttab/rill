@@ -17,11 +17,12 @@ bool test_rotate(void)
     rm(dir);
 
     const uint64_t key = 1;
+    enum { step = 10 * min };
 
     {
         struct rill_acc *acc = rill_acc_open(dir, 1);
 
-        for (rill_ts_t ts = 0; ts < 13 * month; ts += 1 * hour) {
+        for (rill_ts_t ts = 0; ts < 13 * month; ts += step) {
             rill_acc_ingest(acc, key, ts + 1);
             rill_rotate(dir, ts);
         }
@@ -36,7 +37,7 @@ bool test_rotate(void)
         rill_query_close(query);
 
         size_t i = 0;
-        for (rill_ts_t ts = 0; ts < 13 * month; ts += 1 * hour) {
+        for (rill_ts_t ts = 0; ts < 13 * month; ts += step) {
             assert(pairs->data[i].key == key);
             assert(pairs->data[i].val == ts + 1);
             ++i;

@@ -54,9 +54,11 @@ int main(int argc, char **argv)
         keys_range = 1 * 1000 * 1000 * 1000,
         vals_range = 10 * 1000,
         vals_per_key = 4,
+
+        acc_cap = keys_per_sec * vals_per_key * rotation_rate,
     };
 
-    struct rill_acc *acc = rill_acc_open("db", keys_per_sec * rotation_rate);
+    struct rill_acc *acc = rill_acc_open("db", acc_cap);
     if (!acc) return 1;
 
     struct rng rng = rng_make(0);
