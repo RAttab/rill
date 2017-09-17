@@ -5,6 +5,7 @@
 
 #include "rill.h"
 #include "rng.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,17 +46,18 @@ int main(int argc, char **argv)
     (void) argc, (void) argv;
     rm("db");
 
-    struct rill *db = rill_open("db");
-    if (!db) return 1;
-
     enum {
         keys_per_sec = 200,
-        seconds = 3 * 31 * 24 * 60 * 60,
+        seconds = 3 * month,
+        rotation_rate = 10 * min,
 
         keys_range = 1 * 1000 * 1000 * 1000,
         vals_range = 10 * 1000,
         vals_per_key = 4,
     };
+
+    struct rill_acc *acc = rill_acc_open("db", keys_per_sec * rotation_rate);
+    if (!acc) return 1;
 
     struct rng rng = rng_make(0);
     for (size_t ts = 0; ts < seconds; ++ts) {
@@ -64,15 +66,17 @@ int main(int argc, char **argv)
 
             for (size_t j = 0; j < vals_per_key; ++j) {
                 uint64_t val = rng_gen_val(&rng, 0, vals_range);
-                if (!rill_ingest(db, key, val)) return 1;
+                rill_acc_ingest(acc, key, val);
             }
         }
 
-        if (!rill_rotate(db, ts)) return 1;
+        if (ts % rotation_rate == 0) {
+            if (!rill_rotate("db", ts)) return 0;
+        }
     }
 
-    if (!rill_rotate(db, seconds + 60 * 60)) return 1;
-    rill_close(db);
+    rill_acc_close(acc);
+    if (!rill_rotate("db", seconds + 60 * 60)) return 1;
 
     return 0;
 }

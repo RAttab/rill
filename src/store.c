@@ -89,12 +89,6 @@ static struct coder store_decoder(struct rill_store *store)
 // vma
 // -----------------------------------------------------------------------------
 
-static inline size_t to_vma_len(size_t len)
-{
-    if (!(len % page_len)) return len;
-    return (len & ~(page_len - 1)) + page_len;
-}
-
 static inline void vma_will_need(struct rill_store *store)
 {
     if (madvise(store->vma, store->vma_len, MADV_WILLNEED) == -1)
@@ -148,7 +142,7 @@ struct rill_store *rill_store_open(const char *file)
 
     store->vma = mmap(NULL, store->vma_len, PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
-        fail_errno("[reader] unable to mmap '%s'", file);
+        fail_errno("unable to mmap '%s' of len '%lu'", file, store->vma_len);
         goto fail_mmap;
     }
 
@@ -421,17 +415,17 @@ bool rill_store_merge(
 // scan
 // -----------------------------------------------------------------------------
 
-const char * rill_store_file(struct rill_store *store)
+const char * rill_store_file(const struct rill_store *store)
 {
     return store->file;
 }
 
-rill_ts_t rill_store_ts(struct rill_store *store)
+rill_ts_t rill_store_ts(const struct rill_store *store)
 {
     return store->head->ts;
 }
 
-size_t rill_store_quant(struct rill_store *store)
+size_t rill_store_quant(const struct rill_store *store)
 {
     return store->head->quant;
 }

@@ -99,9 +99,9 @@ bool rill_store_merge(
 
 bool rill_store_rm(struct rill_store *store);
 
-const char * rill_store_file(struct rill_store *store);
-rill_ts_t rill_store_ts(struct rill_store *store);
-size_t rill_store_quant(struct rill_store *store);
+const char * rill_store_file(const struct rill_store *store);
+rill_ts_t rill_store_ts(const struct rill_store *store);
+size_t rill_store_quant(const struct rill_store *store);
 
 struct rill_pairs *rill_store_scan_key(
         struct rill_store *store,
@@ -117,23 +117,42 @@ void rill_store_print(struct rill_store *store);
 
 
 // -----------------------------------------------------------------------------
-// rill
+// acc
 // -----------------------------------------------------------------------------
 
-struct rill;
+struct rill_acc;
 
-struct rill * rill_open(const char *dir);
-void rill_close(struct rill *db);
+enum { rill_acc_read_only = 0 };
 
-bool rill_ingest(struct rill *db, rill_key_t key, rill_val_t val);
-bool rill_rotate(struct rill *db, rill_ts_t now);
+struct rill_acc *rill_acc_open(const char *dir, size_t cap);
+void rill_acc_close(struct rill_acc *acc);
+
+void rill_acc_ingest(struct rill_acc *acc, rill_key_t key, rill_val_t val);
+bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now);
+
+
+// -----------------------------------------------------------------------------
+// rotate
+// -----------------------------------------------------------------------------
+
+bool rill_rotate(const char *dir, rill_ts_t now);
+
+
+// -----------------------------------------------------------------------------
+// query
+// -----------------------------------------------------------------------------
+
+struct rill_query;
+
+struct rill_query * rill_query_open(const char *dir);
+void rill_query_close(struct rill_query *db);
 
 struct rill_pairs *rill_query_key(
-        struct rill *db,
+        struct rill_query *query,
         const rill_key_t *keys, size_t len,
         struct rill_pairs *out);
 
 struct rill_pairs *rill_query_val(
-        struct rill *db,
+        struct rill_query *query,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);

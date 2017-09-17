@@ -1,42 +1,119 @@
-/* bench.c
-   Rémi Attab (remi.attab@gmail.com), 04 Sep 2017
+/* rill.c
+   Rémi Attab (remi.attab@gmail.com), 03 Sep 2017
    FreeBSD-style copyright and disclaimer apply
 */
 
 #include "rill.h"
+#include "utils.h"
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <stdatomic.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
-int main(int argc, char **argv)
+
+
+// -----------------------------------------------------------------------------
+// rill
+// -----------------------------------------------------------------------------
+
+struct rill_query
 {
-    (void) argc, (void) argv;
-    struct rill *db = rill_open("db");
-    if (!db) return 1;
+    const char *dir;
 
-    enum { n = 100 };
+    size_t len;
+    struct rill_store *list[1024];
+};
 
-    {
-        rill_key_t keys[100];
-        for (size_t i = 0; i < 100; ++i) keys[i] = i;
-
-        struct rill_pairs out = {0};
-        rill_query_key(db, keys, n, &out);
-
-        rill_pairs_print(&out);
+struct rill_query * rill_query_open(const char *dir)
+{
+    struct rill_query *query = calloc(1, sizeof(*query));
+    if (!query) {
+        fail("unable to allocate memory for '%s'", dir);
+        goto fail_alloc_struct;
     }
 
-    {
-        rill_val_t vals[100];
-        for (size_t i = 0; i < 100; ++i) vals[i] = i;
-
-        struct rill_pairs out = {0};
-        rill_query_val(db, vals, n, &out);
-
-        rill_pairs_print(&out);
+    query->dir = strndup(dir, PATH_MAX);
+    if (!query->dir) {
+        fail("unable to allocate memory for '%s'", dir);
+        goto fail_alloc_dir;
     }
 
-    rill_close(db);
-    return 0;
+    DIR *dir_handle = opendir(dir);
+    if (!dir_handle) {
+        fail_errno("unable to open dir '%s'", dir);
+        goto fail_dir;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir_handle))) {
+        if (entry->d_type != DT_REG) continue;
+        if (!strcmp(entry->d_name, "acc")) continue;
+
+        char file[PATH_MAX];
+        snprintf(file, sizeof(file), "%s/%s", query->dir, entry->d_name);
+
+        query->list[query->len] = rill_store_open(file);
+        if (!query->list[query->len]) continue;
+
+        query->len++;
+    }
+
+    closedir(dir_handle);
+
+    return query;
+
+    closedir(dir_handle);
+  fail_dir:
+    free((char *) query->dir);
+  fail_alloc_dir:
+    free(query);
+  fail_alloc_struct:
+    return NULL;
+}
+
+void rill_query_close(struct rill_query *query)
+{
+    for (size_t i = 0; i < query->len; ++i)
+        rill_store_close(query->list[i]);
+
+    free((char *) query->dir);
+    free(query);
+}
+
+struct rill_pairs *rill_query_key(
+        struct rill_query *query,
+        const rill_key_t *keys, size_t len,
+        struct rill_pairs *out)
+{
+    if (!len) return out;
+
+    struct rill_pairs *result = out;
+    for (size_t i = 0; i < query->len; ++i) {
+        result = rill_store_scan_key(query->list[i], keys, len, result);
+        if (!result) return NULL;
+    }
+
+    rill_pairs_compact(result);
+    return result;
+}
+
+struct rill_pairs *rill_query_val(
+        struct rill_query *query,
+        const rill_val_t *vals, size_t len,
+        struct rill_pairs *out)
+{
+    if (!len) return out;
+
+    struct rill_pairs *result = out;
+    for (size_t i = 0; i < query->len; ++i) {
+        result = rill_store_scan_val(query->list[i], vals, len, result);
+        if (!result) return result;
+    }
+
+    rill_pairs_compact(result);
+    return result;
 }

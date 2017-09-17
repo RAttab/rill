@@ -5,7 +5,7 @@ set -o errexit -o nounset -o pipefail -o xtrace
 : ${PREFIX:="."}
 
 declare -a SRC
-SRC=(htable rng pairs store rill)
+SRC=(htable rng pairs store acc rotate query)
 
 CFLAGS="-g -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
 CFLAGS="$CFLAGS -I${PREFIX}/src"
@@ -23,8 +23,7 @@ done
 ar rcs librill.a $OBJ
 
 gcc -o rill_load "${PREFIX}/src/load.c" librill.a $CFLAGS
-gcc -o rill_query "${PREFIX}/src/query.c" librill.a $CFLAGS
 gcc -o rill_dump "${PREFIX}/src/dump.c" librill.a $CFLAGS
 
 gcc -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
-gcc -o test_rill "${PREFIX}/test/rill_test.c" librill.a $CFLAGS && ./test_rill
+gcc -o test_rotate "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS && ./test_rotate

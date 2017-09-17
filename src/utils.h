@@ -26,6 +26,23 @@
 // misc
 // -----------------------------------------------------------------------------
 
+enum
+{
+    hours = 24,
+    days = 31,
+    months = 13,
+};
+
+enum
+{
+    min = 60,
+    hour = 60 * min,
+    day = hours * hour,
+    month = days * day,
+    expiration = months * month,
+};
+
+
 enum { page_len_s = 4096 };
 static const size_t page_len = page_len_s;
 
@@ -64,4 +81,15 @@ static inline void lock(atomic_size_t *l)
 static inline void unlock(atomic_size_t *l)
 {
     atomic_store_explicit(l, 0, memory_order_release);
+}
+
+
+// -----------------------------------------------------------------------------
+// vma
+// -----------------------------------------------------------------------------
+
+static inline size_t to_vma_len(size_t len)
+{
+    if (!(len % page_len)) return len;
+    return (len & ~(page_len - 1)) + page_len;
 }

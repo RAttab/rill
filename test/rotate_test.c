@@ -15,18 +15,25 @@ bool test_rotate(void)
     const char *dir = "test.rotate.db";
 
     rm(dir);
-    struct rill *db = rill_open(dir);
 
     const uint64_t key = 1;
 
-    for (rill_ts_t ts = 0; ts < 13 * month; ts += 1 * hour) {
-        rill_ingest(db, key, ts + 1);
-        rill_rotate(db, ts);
+    {
+        struct rill_acc *acc = rill_acc_open(dir, 1);
+
+        for (rill_ts_t ts = 0; ts < 13 * month; ts += 1 * hour) {
+            rill_acc_ingest(acc, key, ts + 1);
+            rill_rotate(dir, ts);
+        }
+
+        rill_acc_close(acc);
+        rill_rotate(dir, 13 * month);
     }
-    rill_rotate(db, 13 * month);
 
     {
-        struct rill_pairs *pairs = rill_query_key(db, &key, 1, rill_pairs_new(1));
+        struct rill_query *query = rill_query_open(dir);
+        struct rill_pairs *pairs = rill_query_key(query, &key, 1, rill_pairs_new(1));
+        rill_query_close(query);
 
         size_t i = 0;
         for (rill_ts_t ts = 0; ts < 13 * month; ts += 1 * hour) {
@@ -38,12 +45,13 @@ bool test_rotate(void)
         rill_pairs_free(pairs);
     }
 
-    // \todo this is bad and doesn't properly expire things.
     for (size_t i = 1; i <= 6; ++i)
-        rill_rotate(db, (13 + i) * month);
+        rill_rotate(dir, (13 + i) * month);
 
     {
-        struct rill_pairs *pairs = rill_query_key(db, &key, 1, rill_pairs_new(1));
+        struct rill_query *query = rill_query_open(dir);
+        struct rill_pairs *pairs = rill_query_key(query, &key, 1, rill_pairs_new(1));
+        rill_query_close(query);
 
         for (size_t i = 0; i < pairs->len; ++i) {
             assert(pairs->data[i].key == key);
@@ -53,7 +61,6 @@ bool test_rotate(void)
         rill_pairs_free(pairs);
     }
 
-    rill_close(db);
     rm(dir);
 
     return true;
