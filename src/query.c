@@ -63,7 +63,7 @@ void rill_query_close(struct rill_query *query)
 }
 
 struct rill_pairs *rill_query_key(
-        struct rill_query *query,
+        const struct rill_query *query,
         const rill_key_t *keys, size_t len,
         struct rill_pairs *out)
 {
@@ -80,7 +80,7 @@ struct rill_pairs *rill_query_key(
 }
 
 struct rill_pairs *rill_query_val(
-        struct rill_query *query,
+        const struct rill_query *query,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out)
 {
