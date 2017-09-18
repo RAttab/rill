@@ -31,7 +31,7 @@
 // store
 // -----------------------------------------------------------------------------
 
-static const uint32_t version = 2;
+static const uint32_t version = 3;
 static const uint32_t magic = 0x4C4C4952;
 
 struct rill_packed header
@@ -47,6 +47,8 @@ struct rill_packed header
 
     uint64_t vals_off;
     uint64_t data_off;
+
+    uint64_t reserved[5]; // for future use
 };
 
 struct rill_store
