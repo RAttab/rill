@@ -12,9 +12,6 @@
 
 int main(int argc, char **argv)
 {
-    (void) argc, (void) argv;
-
-
     const char *file = NULL;
     bool header_only = false;
 
