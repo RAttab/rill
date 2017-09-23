@@ -31,6 +31,7 @@ ar rcs librill.a $OBJ
 
 gcc -o rill_load "${PREFIX}/src/rill_load.c" librill.a $CFLAGS
 gcc -o rill_dump "${PREFIX}/src/rill_dump.c" librill.a $CFLAGS
+gcc -o rill_historical_dump "${PREFIX}/src/rill_historical_dump.c" librill.a $CFLAGS
 gcc -o rill_rotate "${PREFIX}/src/rill_rotate.c" librill.a $CFLAGS
 
 gcc -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
