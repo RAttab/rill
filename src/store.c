@@ -494,6 +494,29 @@ struct rill_pairs *rill_store_scan_val(
     return NULL;
 }
 
+
+struct rill_store_it { struct coder decoder; };
+
+struct rill_store_it *rill_store_begin(struct rill_store *store)
+{
+    struct rill_store_it *it = calloc(1, sizeof(*it));
+    if (!it) return NULL;
+
+    it->decoder = store_decoder(store);
+    return it;
+}
+
+void rill_store_it_free(struct rill_store_it *it)
+{
+    free(it);
+}
+
+bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv)
+{
+    return coder_decode(&it->decoder, kv);
+}
+
+
 void rill_store_print_head(struct rill_store *store)
 {
     printf("%s\n", store->file);

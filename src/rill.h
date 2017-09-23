@@ -83,6 +83,7 @@ void rill_pairs_print(const struct rill_pairs *pairs);
 // -----------------------------------------------------------------------------
 
 struct rill_store;
+struct rill_store_it;
 
 struct rill_store *rill_store_open(const char *file);
 void rill_store_close(struct rill_store *store);
@@ -111,6 +112,10 @@ struct rill_pairs *rill_store_scan_val(
         struct rill_store *store,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
+
+struct rill_store_it *rill_store_begin(struct rill_store *store);
+void rill_store_it_free(struct rill_store_it *it);
+bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv);
 
 void rill_store_print_head(struct rill_store *store);
 void rill_store_print(struct rill_store *store);
