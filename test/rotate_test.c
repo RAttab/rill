@@ -33,7 +33,7 @@ bool test_rotate(void)
 
     {
         struct rill_query *query = rill_query_open(dir);
-        struct rill_pairs *pairs = rill_query_key(query, &key, 1, rill_pairs_new(1));
+        struct rill_pairs *pairs = rill_query_keys(query, &key, 1, rill_pairs_new(1));
         rill_query_close(query);
 
         size_t i = 0;
@@ -51,7 +51,7 @@ bool test_rotate(void)
 
     {
         struct rill_query *query = rill_query_open(dir);
-        struct rill_pairs *pairs = rill_query_key(query, &key, 1, rill_pairs_new(1));
+        struct rill_pairs *pairs = rill_query_keys(query, &key, 1, rill_pairs_new(1));
         rill_query_close(query);
 
         for (size_t i = 0; i < pairs->len; ++i) {

@@ -5,7 +5,7 @@
 
 #include "test.h"
 
-#include "coder.c"
+#include "store.c"
 
 
 // -----------------------------------------------------------------------------
@@ -94,6 +94,7 @@ static void check_vals(struct rill_pairs *pairs, struct vals *exp)
     free(vals);
     free(exp);
     free(pairs);
+    htable_reset(&rev);
 }
 
 static void check_vals_merge(struct vals *a, struct vals *b, struct vals *exp)
@@ -104,8 +105,9 @@ static void check_vals_merge(struct vals *a, struct vals *b, struct vals *exp)
     for (size_t i = 0; i < exp->len; ++i)
         assert(result->data[i] == exp->data[i]);
 
-    free(a);
+    free(result);
     free(b);
+    free(exp);
 }
 
 bool test_vals(void)
@@ -142,16 +144,21 @@ void check_coder(struct rill_pairs *pairs)
     size_t cap = (pairs->len + 1) * (sizeof(pairs->data[0]) + 3);
     uint8_t *buffer = calloc(1, cap);
     struct vals *vals = vals_from_pairs(pairs);
+    struct index *index = calloc(1, sizeof(*index) + pairs->len * sizeof(index->data[0]));
 
     size_t len = 0;
     {
-        struct coder coder = make_encoder(vals, buffer, buffer + cap);
+        struct indexer *indexer = indexer_alloc(pairs->len);
+        struct encoder coder = make_encoder(buffer, buffer + cap, vals, indexer);
         for (size_t i = 0; i < pairs->len; ++i)
             assert(coder_encode(&coder, &pairs->data[i]));
         assert(coder_finish(&coder));
 
         len = coder.it - buffer;
         assert(len <= cap);
+
+        indexer_write(indexer, index);
+        indexer_free(indexer);
     }
 
     if (false) { // hex dump for debuging
@@ -167,7 +174,7 @@ void check_coder(struct rill_pairs *pairs)
     }
 
     {
-        struct coder coder = make_decoder(vals, buffer, buffer + len);
+        struct decoder coder = make_decoder(buffer, buffer + len, vals, index);
 
         struct rill_kv kv = {0};
         for (size_t i = 0; i < pairs->len; ++i) {
@@ -179,6 +186,21 @@ void check_coder(struct rill_pairs *pairs)
         assert(rill_kv_nil(&kv));
     }
 
+    for (size_t i = 0; i < pairs->len; ++i) {
+        size_t key_idx; uint64_t off;
+        assert(index_find(index, pairs->data[i].key, &key_idx, &off));
+        struct decoder coder = make_decoder_at(
+                buffer + off, buffer + len, vals, index, key_idx);
+
+        struct rill_kv kv = {0};
+        do {
+            assert(coder_decode(&coder, &kv));
+            assert(kv.key == pairs->data[i].key);
+        } while (kv.val != pairs->data[i].val);
+    }
+
+    free(buffer);
+    free(index);
     free(vals);
     free(pairs);
 }
