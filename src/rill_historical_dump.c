@@ -20,7 +20,7 @@
 
 static const uint64_t val_mask = 1UL << 63;
 
-static void read_utf8(int fd, char *out, size_t to_read)
+void read_utf8(int fd, char *out, size_t to_read)
 {
     size_t len = 0;
     for (size_t i = 0; i < to_read; ++i) {
@@ -57,7 +57,8 @@ static void read_table(const char *file, struct htable *table)
         if (!ret || !len) break;
 
         char *name = calloc(len * 4 + 1, sizeof(*name));
-        read_utf8(fd, name, len);
+        //read_utf8(fd, name, len);
+        assert(read(fd, name, len) > 0);
 
         uint64_t key = 0;
         assert(read(fd, &key, sizeof(key)) > 0);
@@ -69,7 +70,7 @@ static void read_table(const char *file, struct htable *table)
         if (type == 12) key |= val_mask;
         else assert(type == 13);
 
-        {
+        if (false) {
             uint64_t val = key & ~val_mask;
             size_t type = key & val_mask ? 1 : 0;
             static const char *type_str[] = {"set", "rov"};
@@ -80,7 +81,33 @@ static void read_table(const char *file, struct htable *table)
     }
 }
 
-void dump_store(const char *file, struct htable *table)
+void print_val(rill_val_t val, struct htable *table)
+{
+    uint64_t id = val & ~val_mask;
+    size_t type = val & val_mask ? 1 : 0;
+    static const char *type_str[] = {"set", "rov"};
+    printf("    %s %lu", type_str[type], id);
+
+    struct htable_ret ret = htable_get(table, val);
+    if (ret.ok) printf(" -> %s", (char *) ret.value);
+    printf("\n");
+}
+
+void dump_vals(const char *file, struct htable *table)
+{
+    struct rill_store *store = rill_store_open(file);
+    assert(store);
+
+    size_t len = rill_store_vals(store);
+    rill_val_t *vals = calloc(1, len * sizeof(*vals));
+    rill_store_dump_vals(store, vals, len);
+
+    printf("values:\n");
+    for (size_t i = 0; i < len; ++i)
+        print_val(vals[i], table);
+}
+
+void dump_keys(const char *file, struct htable *table)
 {
     struct rill_store *store = rill_store_open(file);
     assert(store);
@@ -98,14 +125,7 @@ void dump_store(const char *file, struct htable *table)
             printf("%p:\n", (void *) kv.key);
         }
 
-        uint64_t val = kv.val & ~val_mask;
-        size_t type = kv.val & val_mask ? 1 : 0;
-        static const char *type_str[] = {"set", "rov"};
-        printf("    %s %lu", type_str[type], val);
-
-        struct htable_ret ret = htable_get(table, kv.val);
-        if (ret.ok) printf(" -> %s", (char *) ret.value);
-        printf("\n");
+        print_val(kv.val, table);
     }
 
     rill_store_close(store);
@@ -115,20 +135,35 @@ int main(int argc, char **argv)
 {
     const char *store_file = NULL;
     const char *table_file = NULL;
+    bool vals_dump = false;
 
-    if (argc != 3) {
+    if (argc == 4) {
+        if (strcmp(argv[1], "-v") != 0) {
+            printf("unknown arg '%s'", argv[1]);
+            return 1;
+        }
+        vals_dump = true;
+    }
+
+    if (argc == 3 || argc == 4) {
+        table_file = argv[argc - 1];
+        store_file = argv[argc - 2];
+    }
+    else {
         fprintf(stderr,
                 "invalid number of arguments\n"
                 "    rill_historical_dump <store> <table>");
         return 1;
     }
 
-    table_file = argv[argc - 1];
-    store_file = argv[argc - 2];
 
     struct htable table = {0};
     read_table(table_file, &table);
-    dump_store(store_file, &table);
+
+    if (vals_dump)
+        dump_vals(store_file, &table);
+    else
+        dump_keys(store_file, &table);
 
     return 0;
 }

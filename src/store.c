@@ -432,6 +432,12 @@ size_t rill_store_quant(const struct rill_store *store)
     return store->head->quant;
 }
 
+size_t rill_store_vals(const struct rill_store *store)
+{
+    return store->vals->len;
+}
+
+
 struct rill_pairs *rill_store_scan_key(
         struct rill_store *store,
         const rill_key_t *keys, size_t len,
@@ -492,6 +498,14 @@ struct rill_pairs *rill_store_scan_val(
   fail:
     vma_dont_need(store);
     return NULL;
+}
+
+size_t rill_store_dump_vals(
+        const struct rill_store *store, rill_val_t *out, size_t cap)
+{
+    size_t len = cap < store->vals->len ? cap : store->vals->len;
+    memcpy(out, store->vals->data, len * sizeof(*out));
+    return len;
 }
 
 
