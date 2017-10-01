@@ -4,6 +4,7 @@
 */
 
 #include "rill.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +32,7 @@ int main(int argc, char **argv)
     }
 
     struct rill_store *store = rill_store_open(file);
-    if (!store) return 1;
+    if (!store) rill_exit(1);
 
     rill_store_print_head(store);
     if (!header_only) rill_store_print(store);

@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     };
 
     struct rill_acc *acc = rill_acc_open("db", acc_cap);
-    if (!acc) return 1;
+    if (!acc) rill_abort();
 
     struct rng rng = rng_make(0);
     for (size_t ts = 0; ts < seconds; ++ts) {
@@ -67,12 +67,12 @@ int main(int argc, char **argv)
         }
 
         if (ts % rotation_rate == 0) {
-            if (!rill_rotate("db", ts)) return 0;
+            if (!rill_rotate("db", ts)) rill_abort();
         }
     }
 
     rill_acc_close(acc);
-    if (!rill_rotate("db", seconds + 60 * 60)) return 1;
+    if (!rill_rotate("db", seconds + 60 * 60)) rill_abort();
 
     return 0;
 }

@@ -67,18 +67,18 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
 
     struct rill_acc *acc = calloc(1, sizeof(*acc));
     if (!acc) {
-        fail("unable to allocate memory for '%s'", dir);
+        rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_struct;
     }
 
     acc->dir = strndup(dir, PATH_MAX);
     if (!acc->dir) {
-        fail("unable to allocate memory for '%s'", dir);
+        rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_dir;
     }
 
     if (mkdir(dir, 0775) == -1 && errno != EEXIST) {
-        fail_errno("unable to open create dir '%s'", dir);
+        rill_fail_errno("unable to open create dir '%s'", dir);
         goto fail_mkdir;
     }
 
@@ -89,7 +89,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
     struct stat stat_ret = {0};
     if (stat(file, &stat_ret) == -1) {
         if (errno != ENOENT) {
-            fail_errno("unable to stat '%s'", file);
+            rill_fail_errno("unable to stat '%s'", file);
             goto fail_stat;
         }
 
@@ -101,21 +101,21 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
     else acc->fd = open(file, O_RDWR);
 
     if (acc->fd == -1) {
-        fail_errno("unable to create '%s'", file);
+        rill_fail_errno("unable to create '%s'", file);
         goto fail_open;
     }
 
     if (create) {
         acc->vma_len = to_vma_len(sizeof(*acc->head) + cap * sizeof(*acc->data));
         if (ftruncate(acc->fd, acc->vma_len) == -1) {
-            fail_errno("unable to ftruncate '%s' to len '%lu'", file, acc->vma_len);
+            rill_fail_errno("unable to ftruncate '%s' to len '%lu'", file, acc->vma_len);
             goto fail_truncate;
         }
     }
     else {
         size_t len = stat_ret.st_size;
         if (len < sizeof(struct header)) {
-            fail("invalid size for '%s'", file);
+            rill_fail("invalid size for '%s'", file);
             goto fail_size;
         }
 
@@ -124,7 +124,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
 
     acc->vma = mmap(NULL, acc->vma_len, PROT_READ | PROT_WRITE, MAP_SHARED, acc->fd, 0);
     if (acc->vma == MAP_FAILED) {
-        fail_errno("unable to mmap '%s' of len '%lu'", file, acc->vma_len);
+        rill_fail_errno("unable to mmap '%s' of len '%lu'", file, acc->vma_len);
         goto fail_mmap;
     }
 
@@ -138,12 +138,12 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
     }
     else {
         if (acc->head->magic != magic) {
-            fail("invalid magic '0x%x' for '%s'", acc->head->magic, file);
+            rill_fail("invalid magic '0x%x' for '%s'", acc->head->magic, file);
             goto fail_magic;
         }
 
         if (acc->head->version != version) {
-            fail("unknown version '%du' for '%s'", acc->head->version, file);
+            rill_fail("unknown version '%du' for '%s'", acc->head->version, file);
             goto fail_version;
         }
     }
@@ -193,7 +193,7 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
 {
     struct rill_pairs *pairs = rill_pairs_new(acc->head->len);
     if (!pairs) {
-        fail("unable to allocate pairs for len '%lu'", acc->head->len);
+        rill_fail("unable to allocate pairs for len '%lu'", acc->head->len);
         return false;
     }
 
@@ -221,7 +221,7 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
     }
 
     if (!rill_store_write(file, now, 0, pairs)) {
-        fail("unable to write acc file '%s'", file);
+        rill_fail("unable to write acc file '%s'", file);
         goto fail_write;
     }
 

@@ -5,6 +5,7 @@
 
 
 #include "rill.h"
+#include "utils.h"
 #include "htable.h"
 
 #include <errno.h>
@@ -105,12 +106,14 @@ void dump_vals(const char *file, struct htable *table)
     printf("values:\n");
     for (size_t i = 0; i < len; ++i)
         print_val(vals[i], table);
+
+    free(vals);
 }
 
 void dump_keys(const char *file, struct htable *table)
 {
     struct rill_store *store = rill_store_open(file);
-    assert(store);
+    if (!store) rill_exit(1);
 
     rill_store_print_head(store);
 

@@ -13,10 +13,12 @@
 
 
 // -----------------------------------------------------------------------------
-// attributes
+// compiler
 // -----------------------------------------------------------------------------
 
 #define rill_packed       __attribute__((__packed__))
+#define rill_noreturn     __attribute__((noreturn))
+#define rill_printf(x,y)  __attribute__((format(printf, x, y)))
 #define rill_likely(x)    __builtin_expect(x, 1)
 #define rill_unlikely(x)  __builtin_expect(x, 0)
 
@@ -26,6 +28,31 @@
 // -----------------------------------------------------------------------------
 
 #define array_len(arr) (sizeof((arr)) / sizeof((arr)[0]))
+
+
+// -----------------------------------------------------------------------------
+// err
+// -----------------------------------------------------------------------------
+
+void rill_abort() rill_noreturn;
+void rill_exit(int code) rill_noreturn;
+
+void rill_vfail(const char *file, int line, const char *fmt, ...)
+    rill_printf(3, 4);
+
+void rill_vfail_errno(const char *file, int line, const char *fmt, ...)
+    rill_printf(3, 4);
+
+#define rill_fail(...)                                \
+    rill_vfail(__FILE__, __LINE__, __VA_ARGS__)
+
+#define rill_fail_errno(...)                          \
+    rill_vfail_errno(__FILE__, __LINE__, __VA_ARGS__)
+
+
+// -----------------------------------------------------------------------------
+// time
+// -----------------------------------------------------------------------------
 
 enum
 {
@@ -45,24 +72,12 @@ enum
 };
 
 
-enum { page_len_s = 4096 };
-static const size_t page_len = page_len_s;
-
-
-// -----------------------------------------------------------------------------
-// err
-// -----------------------------------------------------------------------------
-
-#define fail(fmt, ...) \
-    fprintf(stderr, "[fail] "fmt"\n", __VA_ARGS__)
-
-#define fail_errno(fmt, ...) \
-    fprintf(stderr, "[fail] "fmt"(%d): %s\n", __VA_ARGS__, errno, strerror(errno))
-
-
 // -----------------------------------------------------------------------------
 // vma
 // -----------------------------------------------------------------------------
+
+enum { page_len_s = 4096 };
+static const size_t page_len = page_len_s;
 
 static inline size_t to_vma_len(size_t len)
 {

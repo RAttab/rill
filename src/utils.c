@@ -6,14 +6,80 @@
 #include "rill.h"
 #include "utils.h"
 
+#include <errno.h>
+#include <stdlib.h>
+#include <stdarg.h>
 #include <dirent.h>
+#include <unistd.h>
+
+
+// -----------------------------------------------------------------------------
+// error
+// -----------------------------------------------------------------------------
+
+__thread struct rill_error rill_errno = { 0 };
+
+void rill_abort()
+{
+    rill_perror(&rill_errno);
+    abort();
+}
+
+void rill_exit(int code)
+{
+    rill_perror(&rill_errno);
+    exit(code);
+}
+
+size_t rill_strerror(struct rill_error *err, char *dest, size_t len)
+{
+    if (!err->errno_) {
+        return snprintf(dest, len, "%s:%d: %s\n",
+                err->file, err->line, err->msg);
+    }
+    else {
+        return snprintf(dest, len, "%s:%d: %s - %s(%d)\n",
+                err->file, err->line, err->msg,
+                strerror(err->errno_), err->errno_);
+    }
+}
+
+void rill_perror(struct rill_error *err)
+{
+    char buf[128 + rill_err_msg_cap];
+    size_t len = rill_strerror(err, buf, sizeof(buf));
+
+    if (write(2, buf, len) == -1)
+        fprintf(stderr, "rill_perror failed: %s", strerror(errno));
+}
+
+
+void rill_vfail(const char *file, int line, const char *fmt, ...)
+{
+    rill_errno = (struct rill_error) { .errno_ = 0, .file = file, .line = line };
+
+    va_list args;
+    va_start(args, fmt);
+    (void) vsnprintf(rill_errno.msg, rill_err_msg_cap, fmt, args);
+    va_end(args);
+}
+
+void rill_vfail_errno(const char *file, int line, const char *fmt, ...)
+{
+    rill_errno = (struct rill_error) { .errno_ = errno, .file = file, .line = line };
+
+    va_list args;
+    va_start(args, fmt);
+    (void) vsnprintf(rill_errno.msg, rill_err_msg_cap, fmt, args);
+    va_end(args);
+}
 
 
 // -----------------------------------------------------------------------------
 // scan_dir
 // -----------------------------------------------------------------------------
 
-bool is_rill_file(const char *name)
+static bool is_rill_file(const char *name)
 {
     static const char ext[] = ".rill";
 
@@ -28,7 +94,7 @@ size_t rill_scan_dir(const char *dir, struct rill_store **list, size_t cap)
     DIR *dir_handle = opendir(dir);
     if (!dir_handle) {
         if (errno == ENOENT) return 0;
-        fail_errno("unable to open dir '%s'", dir);
+        rill_fail_errno("unable to open dir '%s'", dir);
         return 0;
     }
 
@@ -46,7 +112,7 @@ size_t rill_scan_dir(const char *dir, struct rill_store **list, size_t cap)
 
         len++;
         if (len == cap) {
-            fail("rotate: too many files to rotate in '%s'", dir);
+            rill_fail("rotate: too many files to rotate in '%s'", dir);
             break;
         }
     }

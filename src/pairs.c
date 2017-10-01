@@ -35,7 +35,10 @@ struct rill_pairs *rill_pairs_new(size_t cap)
 
     struct rill_pairs *pairs =
         calloc(1, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
-    if (!pairs) return NULL;
+    if (!pairs) {
+        rill_fail("unable to alloc pairs: cap=%lu", cap);
+        return NULL;
+    }
 
     pairs->cap = cap;
     return pairs;
@@ -62,7 +65,10 @@ struct rill_pairs *rill_pairs_push(
         size_t cap = adjust_cap(pairs->cap, pairs->len + 1);
 
         pairs = realloc(pairs, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
-        if (!pairs) return NULL;
+        if (!pairs) {
+            rill_fail("unable to realloc pairs: cap=%lu", cap);
+            return NULL;
+        }
 
         pairs->cap = cap;
     }

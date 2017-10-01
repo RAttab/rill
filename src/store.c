@@ -98,13 +98,13 @@ static struct coder store_decoder(struct rill_store *store)
 static inline void vma_will_need(struct rill_store *store)
 {
     if (madvise(store->vma, store->vma_len, MADV_WILLNEED) == -1)
-        fail("unable to madvise '%s'", store->file);
+        rill_fail("unable to madvise '%s'", store->file);
 }
 
 static inline void vma_dont_need(struct rill_store *store)
 {
     if (madvise(store->vma, store->vma_len, MADV_DONTNEED) == -1)
-        fail("unable to madvise '%s'", store->file);
+        rill_fail("unable to madvise '%s'", store->file);
 }
 
 
@@ -123,25 +123,25 @@ struct rill_store *rill_store_open(const char *file)
 {
     struct rill_store *store = calloc(1, sizeof(*store));
     if (!store) {
-        fail("unable to allocate memory for '%s'", file);
+        rill_fail("unable to allocate memory for '%s'", file);
         goto fail_alloc_struct;
     }
 
     store->file = strndup(file, PATH_MAX);
     if (!store->file) {
-        fail("unable to allocate memory for '%s'", file);
+        rill_fail("unable to allocate memory for '%s'", file);
         goto fail_alloc_file;
     }
 
     struct stat stat_ret = {0};
     if (stat(file, &stat_ret) == -1) {
-        fail_errno("unable to stat '%s'", file);
+        rill_fail_errno("unable to stat '%s'", file);
         goto fail_stat;
     }
 
     size_t len = stat_ret.st_size;
     if (len < sizeof(struct header)) {
-        fail("invalid size for '%s'", file);
+        rill_fail("invalid size for '%s'", file);
         goto fail_size;
     }
 
@@ -149,13 +149,13 @@ struct rill_store *rill_store_open(const char *file)
 
     store->fd = open(file, O_RDONLY);
     if (store->fd == -1) {
-        fail_errno("unable to open '%s'", file);
+        rill_fail_errno("unable to open '%s'", file);
         goto fail_open;
     }
 
     store->vma = mmap(NULL, store->vma_len, PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
-        fail_errno("unable to mmap '%s' of len '%lu'", file, store->vma_len);
+        rill_fail_errno("unable to mmap '%s' of len '%lu'", file, store->vma_len);
         goto fail_mmap;
     }
 
@@ -165,18 +165,18 @@ struct rill_store *rill_store_open(const char *file)
     store->end = (void *) ((uintptr_t) store->vma + store->vma_len);
 
     if (store->head->magic != magic) {
-        fail("invalid magic '0x%x' for '%s'", store->head->magic, file);
+        rill_fail("invalid magic '0x%x' for '%s'", store->head->magic, file);
         goto fail_magic;
     }
 
     if (!is_supported_version(store->head->version)) {
-        fail("invalid version '%du' for '%s'", store->head->version, file);
+        rill_fail("invalid version '%du' for '%s'", store->head->version, file);
         goto fail_version;
     }
 
     if (store->head->version >= 4) {
         if (store->head->stamp != stamp) {
-            fail("invalid stamp '%p' for '%s'", (void *) store->head->stamp, file);
+            rill_fail("invalid stamp '%p' for '%s'", (void *) store->head->stamp, file);
             goto fail_stamp;
         }
     }
@@ -210,7 +210,7 @@ void rill_store_close(struct rill_store *store)
 bool rill_store_rm(struct rill_store *store)
 {
     if (unlink(store->file) == -1) {
-        fail_errno("unable to unlink '%s'", store->file);
+        rill_fail_errno("unable to unlink '%s'", store->file);
         return false;
     }
 
@@ -232,20 +232,20 @@ static bool writer_open(
 
     store->fd = open(file, O_RDWR | O_CREAT | O_EXCL, 0640);
     if (store->fd == -1) {
-        fail_errno("unable to open '%s'", file);
+        rill_fail_errno("unable to open '%s'", file);
         goto fail_open;
     }
 
     size_t len = sizeof(struct header) + cap;
     if (ftruncate(store->fd, len) == -1) {
-        fail_errno("unable to resize '%s'", file);
+        rill_fail_errno("unable to resize '%s'", file);
         goto fail_truncate;
     }
 
     store->vma_len = to_vma_len(len);
     store->vma = mmap(NULL, store->vma_len, PROT_WRITE | PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
-        fail_errno("unable to mmap '%s'", file);
+        rill_fail_errno("unable to mmap '%s'", file);
         goto fail_mmap;
     }
 
@@ -275,10 +275,10 @@ static void writer_close(struct rill_store *store, size_t len)
 {
     if (len) {
         if (ftruncate(store->fd, len) == -1)
-            fail_errno("unable to resize '%s'", store->file);
+            rill_fail_errno("unable to resize '%s'", store->file);
 
         if (fdatasync(store->fd) == -1)
-            fail_errno("unable to fdatasync data '%s'", store->file);
+            rill_fail_errno("unable to fdatasync data '%s'", store->file);
 
         // Indicate that the file has been fully written and is ready for
         // use. An additional sync is required for the stamp to ensure that the
@@ -287,11 +287,11 @@ static void writer_close(struct rill_store *store, size_t len)
         // - ... only persisted after all the data has been persisted (ordering)
         store->head->stamp = stamp;
         if (fdatasync(store->fd) == -1)
-            fail_errno("unable to fdatasync stamp '%s'", store->file);
+            rill_fail_errno("unable to fdatasync stamp '%s'", store->file);
 
     }
     else if (unlink(store->file) == -1)
-        fail_errno("unable to unlink '%s'", store->file);
+        rill_fail_errno("unable to unlink '%s'", store->file);
 
     munmap(store->vma, store->vma_len);
     close(store->fd);
@@ -329,7 +329,7 @@ bool rill_store_write(
 
     struct rill_store store = {0};
     if (!writer_open(&store, file, cap, ts, quant)) {
-        fail("unable to create '%s'", file);
+        rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
 
@@ -385,7 +385,7 @@ bool rill_store_merge(
 
     struct rill_store store = {0};
     if (!writer_open(&store, file, cap, ts, quant)) {
-        fail("unable to create '%s'", file);
+        rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
 

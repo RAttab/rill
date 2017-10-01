@@ -9,6 +9,28 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
+// -----------------------------------------------------------------------------
+// error
+// -----------------------------------------------------------------------------
+
+enum { rill_err_msg_cap = 1024 };
+
+struct rill_error
+{
+    const char *file;
+    int line;
+
+    int errno_; // errno can be a macro hence the underscore.
+    char msg[rill_err_msg_cap];
+};
+
+extern __thread struct rill_error rill_errno;
+
+void rill_perror(struct rill_error *err);
+size_t rill_strerror(struct rill_error *err, char *dest, size_t len);
+
+
 // -----------------------------------------------------------------------------
 // types
 // -----------------------------------------------------------------------------
@@ -75,7 +97,6 @@ struct rill_pairs *rill_pairs_scan_val(
         struct rill_pairs *out);
 
 void rill_pairs_print(const struct rill_pairs *pairs);
-
 
 
 // -----------------------------------------------------------------------------

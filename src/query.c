@@ -31,13 +31,13 @@ struct rill_query * rill_query_open(const char *dir)
 {
     struct rill_query *query = calloc(1, sizeof(*query));
     if (!query) {
-        fail("unable to allocate memory for '%s'", dir);
+        rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_struct;
     }
 
     query->dir = strndup(dir, PATH_MAX);
     if (!query->dir) {
-        fail("unable to allocate memory for '%s'", dir);
+        rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_dir;
     }
 

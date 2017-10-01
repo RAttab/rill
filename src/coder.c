@@ -249,7 +249,7 @@ static struct coder make_encoder(struct vals *vals, uint8_t *it, uint8_t *end)
 static inline bool coder_read_key(struct coder *coder, rill_key_t *key)
 {
     if (rill_unlikely(coder->it + sizeof(*key) > coder->end)) {
-        fail("unable to decode key: %p + %lu = %p > %p'\n",
+        rill_fail("unable to decode key: %p + %lu = %p > %p'\n",
                 (void *) coder->it, sizeof(*key),
                 (void *) (coder->it + sizeof(*key)),
                 (void *) coder->end);
@@ -265,7 +265,7 @@ static inline bool coder_read_key(struct coder *coder, rill_key_t *key)
 static inline bool coder_read_val(struct coder *coder, rill_val_t *val)
 {
     if (!leb128_decode(&coder->it, coder->end, val)) {
-        fail("unable to decode value at '%p-%p'\n",
+        rill_fail("unable to decode value at '%p-%p'\n",
                 (void *) coder->it, (void *) coder->end);
         return false;
     }
