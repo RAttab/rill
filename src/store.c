@@ -31,8 +31,10 @@
 // store
 // -----------------------------------------------------------------------------
 
-static const uint32_t version = 3;
 static const uint32_t magic = 0x4C4C4952;
+static const uint64_t stamp = 0xFFFFFFFFFFFFFFFFUL;
+static const uint32_t version = 4;
+static const uint32_t supported_versions[] = { 3, 4 };
 
 struct rill_packed header
 {
@@ -48,7 +50,9 @@ struct rill_packed header
     uint64_t vals_off;
     uint64_t data_off;
 
-    uint64_t reserved[5]; // for future use
+    uint64_t reserved[4]; // for future use
+
+    uint64_t stamp;
 };
 
 struct rill_store
@@ -108,6 +112,13 @@ static inline void vma_dont_need(struct rill_store *store)
 // reader
 // -----------------------------------------------------------------------------
 
+static bool is_supported_version(uint32_t version)
+{
+    for (size_t i = 0; i < array_len(supported_versions); ++i)
+        if (version == supported_versions[i]) return true;
+    return false;
+}
+
 struct rill_store *rill_store_open(const char *file)
 {
     struct rill_store *store = calloc(1, sizeof(*store));
@@ -158,15 +169,23 @@ struct rill_store *rill_store_open(const char *file)
         goto fail_magic;
     }
 
-    if (store->head->version != version) {
-        fail("unknown version '%du' for '%s'", store->head->version, file);
+    if (!is_supported_version(store->head->version)) {
+        fail("invalid version '%du' for '%s'", store->head->version, file);
         goto fail_version;
+    }
+
+    if (store->head->version >= 4) {
+        if (store->head->stamp != stamp) {
+            fail("invalid stamp '%p' for '%s'", (void *) store->head->stamp, file);
+            goto fail_stamp;
+        }
     }
 
     return store;
 
   fail_version:
   fail_magic:
+  fail_stamp:
     munmap(store->vma, store->vma_len);
   fail_mmap:
     close(store->fd);
@@ -254,18 +273,27 @@ static bool writer_open(
 
 static void writer_close(struct rill_store *store, size_t len)
 {
-    munmap(store->vma, store->vma_len);
-
     if (len) {
         if (ftruncate(store->fd, len) == -1)
             fail_errno("unable to resize '%s'", store->file);
 
         if (fdatasync(store->fd) == -1)
-            fail_errno("unable to fsync '%s'", store->file);
+            fail_errno("unable to fdatasync data '%s'", store->file);
+
+        // Indicate that the file has been fully written and is ready for
+        // use. An additional sync is required for the stamp to ensure that the
+        // data is...
+        // - ... properly persisted before we delete it (durability)
+        // - ... only persisted after all the data has been persisted (ordering)
+        store->head->stamp = stamp;
+        if (fdatasync(store->fd) == -1)
+            fail_errno("unable to fdatasync stamp '%s'", store->file);
+
     }
     else if (unlink(store->file) == -1)
         fail_errno("unable to unlink '%s'", store->file);
 
+    munmap(store->vma, store->vma_len);
     close(store->fd);
 }
 
@@ -536,6 +564,7 @@ void rill_store_print_head(struct rill_store *store)
     printf("%s\n", store->file);
     printf("magic:   0x%x\n", store->head->magic);
     printf("version: %u\n", store->head->version);
+    printf("stamp:   %p\n", (void *) store->head->stamp);
     printf("ts:      %lu\n", store->head->ts);
     printf("quant:   %lu\n", store->head->quant);
     printf("keys:    %lu\n", store->head->keys);

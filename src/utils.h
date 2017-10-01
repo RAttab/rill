@@ -25,6 +25,8 @@
 // misc
 // -----------------------------------------------------------------------------
 
+#define array_len(arr) (sizeof((arr)) / sizeof((arr)[0]))
+
 enum
 {
     mins_in_hour = 60,
