@@ -107,7 +107,7 @@ void dump_vals(const char *file, struct htable *table)
     for (size_t i = 0; i < len; ++i)
         print_val(vals[i], table);
 
-    free(vals);
+    trace_free(vals);
 }
 
 void dump_keys(const char *file, struct htable *table)

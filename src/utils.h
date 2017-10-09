@@ -84,3 +84,57 @@ static inline size_t to_vma_len(size_t len)
     if (!(len % page_len)) return len;
     return (len & ~(page_len - 1)) + page_len;
 }
+
+
+// -----------------------------------------------------------------------------
+// tracer
+// -----------------------------------------------------------------------------
+
+#define trace(title, ...) \
+    rill_vtrace(__FUNCTION__, __LINE__, title, __VA_ARGS__)
+
+void rill_vtrace(
+        const char *fn, int line, const char *title, const char *fmt, ...)
+    rill_printf(4, 5);
+
+#define trace_calloc(num, len)                                          \
+    ({                                                                  \
+        void *ret = calloc(num, len);                                   \
+        trace("calloc", "%lu %lu -> %p", (size_t) num, (size_t) len, ret); \
+        ret;                                                            \
+    })
+
+#define trace_realloc(ptr, len)                                         \
+    ({                                                                  \
+        void *ret = realloc(ptr, len);                                  \
+        trace("realloc", "%p %lu -> %p", (void *) ptr, (size_t) len, ret); \
+        ret;                                                            \
+    })
+
+#define trace_free(ptr)                                                 \
+    ({                                                                  \
+        free(ptr);                                                      \
+        if (ptr) trace("free", "%p", (void *) ptr);                      \
+    })
+
+#define trace_strndup(str, len)                                         \
+    ({                                                                  \
+        void *ret = strndup(str, len);                                  \
+        trace("strndup", "%p %lu -> %p", (void *) str, (size_t) len, ret); \
+        ret;                                                            \
+    })
+
+#define trace_mmap(addr, len, prot, flags, fd, off)                     \
+    ({                                                                  \
+        void *ret = mmap(addr, len, prot, flags, fd, off);              \
+        trace("mmap", "%p, %p, %d, %d, %d, %lu -> %p",                  \
+                (void *) addr, (void *) len, prot, flags, fd, (size_t) off, ret); \
+        ret;                                                            \
+    })
+
+#define trace_munmap(addr, len)                                         \
+    ({                                                                  \
+        int ret = munmap(addr, len);                                    \
+        trace("munmap", "%p, %p -> %d",(void *) addr, (void *) len, ret); \
+        ret;                                                            \
+    })

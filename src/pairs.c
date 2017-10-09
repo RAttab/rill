@@ -34,7 +34,7 @@ struct rill_pairs *rill_pairs_new(size_t cap)
     cap = adjust_cap(1, cap);
 
     struct rill_pairs *pairs =
-        calloc(1, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
+        trace_calloc(1, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
     if (!pairs) {
         rill_fail("unable to alloc pairs: cap=%lu", cap);
         return NULL;
@@ -47,7 +47,7 @@ struct rill_pairs *rill_pairs_new(size_t cap)
 
 void rill_pairs_free(struct rill_pairs *pairs)
 {
-    free(pairs);
+    trace_free(pairs);
 }
 
 
@@ -64,7 +64,7 @@ struct rill_pairs *rill_pairs_push(
     if (rill_unlikely(pairs->len + 1 > pairs->cap)) {
         size_t cap = adjust_cap(pairs->cap, pairs->len + 1);
 
-        pairs = realloc(pairs, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
+        pairs = trace_realloc(pairs, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
         if (!pairs) {
             rill_fail("unable to realloc pairs: cap=%lu", cap);
             return NULL;

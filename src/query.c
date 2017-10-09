@@ -29,13 +29,13 @@ struct rill_query
 
 struct rill_query * rill_query_open(const char *dir)
 {
-    struct rill_query *query = calloc(1, sizeof(*query));
+    struct rill_query *query = trace_calloc(1, sizeof(*query));
     if (!query) {
         rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_struct;
     }
 
-    query->dir = strndup(dir, PATH_MAX);
+    query->dir = trace_strndup(dir, PATH_MAX);
     if (!query->dir) {
         rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_dir;
@@ -46,9 +46,9 @@ struct rill_query * rill_query_open(const char *dir)
 
     return query;
 
-    free((char *) query->dir);
+    trace_free((char *) query->dir);
   fail_alloc_dir:
-    free(query);
+    trace_free(query);
   fail_alloc_struct:
     return NULL;
 }
@@ -58,8 +58,8 @@ void rill_query_close(struct rill_query *query)
     for (size_t i = 0; i < query->len; ++i)
         rill_store_close(query->list[i]);
 
-    free((char *) query->dir);
-    free(query);
+    trace_free((char *) query->dir);
+    trace_free(query);
 }
 
 struct rill_pairs *rill_query_key(

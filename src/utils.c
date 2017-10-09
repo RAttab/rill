@@ -120,3 +120,30 @@ size_t rill_scan_dir(const char *dir, struct rill_store **list, size_t cap)
     closedir(dir_handle);
     return len;
 }
+
+
+// -----------------------------------------------------------------------------
+// tracer
+// -----------------------------------------------------------------------------
+
+static FILE *ftrace = NULL;
+static const char *trace_file = "/tmp/rill.trace";
+
+void rill_vtrace(const char *fn, int line, const char *title, const char *fmt, ...)
+{
+    if (!ftrace) ftrace = fopen(trace_file, "w");
+
+    if (!ftrace) {
+        rill_fail_errno("unable to open '%s'", trace_file);
+        rill_abort();
+    }
+
+    char buffer[1024];
+
+    va_list args;
+    va_start(args, fmt);
+    (void) vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+
+    fprintf(ftrace, "%s:%d %s %s\n", fn, line, title, buffer);
+}

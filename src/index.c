@@ -41,7 +41,7 @@ static struct indexer *indexer_alloc(size_t cap)
 {
     assert(cap);
 
-    struct indexer *indexer = calloc(1, sizeof(*indexer) + cap * sizeof(indexer->kvs[0]));
+    struct indexer *indexer = trace_calloc(1, sizeof(*indexer) + cap * sizeof(indexer->kvs[0]));
     if (!indexer) {
         rill_fail("unable to allocate indexer: %lu", cap);
         return NULL;
@@ -53,7 +53,7 @@ static struct indexer *indexer_alloc(size_t cap)
 
 static void indexer_free(struct indexer *indexer)
 {
-    free(indexer);
+    trace_free(indexer);
 }
 
 static void indexer_put(struct indexer *indexer, rill_key_t key, uint64_t off)

@@ -65,13 +65,13 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
     // some might say this is an excessive amount of leeway but I don't care.
     cap *= 2;
 
-    struct rill_acc *acc = calloc(1, sizeof(*acc));
+    struct rill_acc *acc = trace_calloc(1, sizeof(*acc));
     if (!acc) {
         rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_struct;
     }
 
-    acc->dir = strndup(dir, PATH_MAX);
+    acc->dir = trace_strndup(dir, PATH_MAX);
     if (!acc->dir) {
         rill_fail("unable to allocate memory for '%s'", dir);
         goto fail_alloc_dir;
@@ -122,7 +122,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
         acc->vma_len = to_vma_len(len);
     }
 
-    acc->vma = mmap(NULL, acc->vma_len, PROT_READ | PROT_WRITE, MAP_SHARED, acc->fd, 0);
+    acc->vma = trace_mmap(NULL, acc->vma_len, PROT_READ | PROT_WRITE, MAP_SHARED, acc->fd, 0);
     if (acc->vma == MAP_FAILED) {
         rill_fail_errno("unable to mmap '%s' of len '%lu'", file, acc->vma_len);
         goto fail_mmap;
@@ -152,7 +152,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
 
   fail_version:
   fail_magic:
-    munmap(acc->vma, acc->vma_len);
+    trace_munmap(acc->vma, acc->vma_len);
   fail_mmap:
   fail_size:
   fail_truncate:
@@ -161,19 +161,19 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
   fail_read_only:
   fail_stat:
   fail_mkdir:
-    free((char *) acc->dir);
+    trace_free((char *) acc->dir);
   fail_alloc_dir:
-    free(acc);
+    trace_free(acc);
   fail_alloc_struct:
     return NULL;
 }
 
 void rill_acc_close(struct rill_acc *acc)
 {
-    munmap(acc->vma, acc->vma_len);
+    trace_munmap(acc->vma, acc->vma_len);
     close(acc->fd);
-    free((char *) acc->dir);
-    free(acc);
+    trace_free((char *) acc->dir);
+    trace_free(acc);
 }
 
 void rill_acc_ingest(struct rill_acc *acc, rill_key_t key, rill_val_t val)

@@ -4,6 +4,7 @@
 */
 
 #include "htable.h"
+#include "utils.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -40,7 +41,7 @@ inline uint64_t hash_key(uint64_t key)
 
 void htable_reset(struct htable *ht)
 {
-    free(ht->table);
+    trace_free(ht->table);
     *ht = (struct htable) {0};
 }
 
@@ -70,19 +71,19 @@ static void htable_resize(struct htable *ht, size_t cap)
     size_t new_cap = ht->cap ? ht->cap : 1;
     while (new_cap < cap) new_cap *= 2;
 
-    struct htable_bucket *new_table = calloc(new_cap, sizeof(*new_table));
+    struct htable_bucket *new_table = trace_calloc(new_cap, sizeof(*new_table));
     for (size_t i = 0; i < ht->cap; ++i) {
         struct htable_bucket *bucket = &ht->table[i];
         if (!bucket->key) continue;
 
         if (!table_put(new_table, new_cap, bucket->key, bucket->value)) {
-            free(new_table);
+            trace_free(new_table);
             htable_resize(ht, new_cap * 2);
             return;
         }
     }
 
-    free(ht->table);
+    trace_free(ht->table);
     ht->cap = new_cap;
     ht->table = new_table;
 }

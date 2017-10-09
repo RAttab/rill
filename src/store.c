@@ -135,13 +135,13 @@ static bool is_supported_version(uint32_t version)
 
 struct rill_store *rill_store_open(const char *file)
 {
-    struct rill_store *store = calloc(1, sizeof(*store));
+    struct rill_store *store = trace_calloc(1, sizeof(*store));
     if (!store) {
         rill_fail("unable to allocate memory for '%s'", file);
         goto fail_alloc_struct;
     }
 
-    store->file = strndup(file, PATH_MAX);
+    store->file = trace_strndup(file, PATH_MAX);
     if (!store->file) {
         rill_fail("unable to allocate memory for '%s'", file);
         goto fail_alloc_file;
@@ -167,7 +167,7 @@ struct rill_store *rill_store_open(const char *file)
         goto fail_open;
     }
 
-    store->vma = mmap(NULL, store->vma_len, PROT_READ, MAP_SHARED, store->fd, 0);
+    store->vma = trace_mmap(NULL, store->vma_len, PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
         rill_fail_errno("unable to mmap '%s' of len '%lu'", file, store->vma_len);
         goto fail_mmap;
@@ -201,25 +201,25 @@ struct rill_store *rill_store_open(const char *file)
   fail_version:
   fail_magic:
   fail_stamp:
-    munmap(store->vma, store->vma_len);
+    trace_munmap(store->vma, store->vma_len);
   fail_mmap:
     close(store->fd);
   fail_open:
   fail_size:
   fail_stat:
-    free((char *) store->file);
+    trace_free((char *) store->file);
   fail_alloc_file:
-    free(store);
+    trace_free(store);
   fail_alloc_struct:
     return NULL;
 }
 
 void rill_store_close(struct rill_store *store)
 {
-    munmap(store->vma, store->vma_len);
+    trace_munmap(store->vma, store->vma_len);
     close(store->fd);
-    free((char *) store->file);
-    free(store);
+    trace_free((char *) store->file);
+    trace_free(store);
 }
 
 bool rill_store_rm(struct rill_store *store)
@@ -258,7 +258,7 @@ static bool writer_open(
     }
 
     store->vma_len = to_vma_len(len);
-    store->vma = mmap(NULL, store->vma_len, PROT_WRITE | PROT_READ, MAP_SHARED, store->fd, 0);
+    store->vma = trace_mmap(NULL, store->vma_len, PROT_WRITE | PROT_READ, MAP_SHARED, store->fd, 0);
     if (store->vma == MAP_FAILED) {
         rill_fail_errno("unable to mmap '%s'", file);
         goto fail_mmap;
@@ -278,7 +278,7 @@ static bool writer_open(
 
     return true;
 
-    munmap(store->vma, store->vma_len);
+    trace_munmap(store->vma, store->vma_len);
   fail_mmap:
   fail_truncate:
     close(store->fd);
@@ -329,7 +329,7 @@ static void writer_close(
     else if (unlink(store->file) == -1)
         rill_fail_errno("unable to unlink '%s'", store->file);
 
-    munmap(store->vma, store->vma_len);
+    trace_munmap(store->vma, store->vma_len);
     close(store->fd);
 }
 
@@ -367,7 +367,7 @@ bool rill_store_write(
 
     coder_close(&coder);
     indexer_free(indexer);
-    free(vals);
+    trace_free(vals);
     return true;
 
   fail_encode:
@@ -375,7 +375,7 @@ bool rill_store_write(
     writer_close(&store, indexer, 0);
     indexer_free(indexer);
   fail_open:
-    free(vals);
+    trace_free(vals);
   fail_vals:
     return false;
 }
@@ -460,7 +460,7 @@ bool rill_store_merge(
 
     coder_close(&encoder);
     indexer_free(indexer);
-    free(vals);
+    trace_free(vals);
     return true;
 
   fail_coder:
@@ -469,7 +469,7 @@ bool rill_store_merge(
     indexer_free(indexer);
   fail_open:
   fail_vals:
-    free(vals);
+    trace_free(vals);
     return false;
 }
 
@@ -605,7 +605,7 @@ struct rill_store_it { struct decoder decoder; };
 
 struct rill_store_it *rill_store_begin(struct rill_store *store)
 {
-    struct rill_store_it *it = calloc(1, sizeof(*it));
+    struct rill_store_it *it = trace_calloc(1, sizeof(*it));
     if (!it) return NULL;
 
     it->decoder = store_decoder(store);
@@ -614,7 +614,7 @@ struct rill_store_it *rill_store_begin(struct rill_store *store)
 
 void rill_store_it_free(struct rill_store_it *it)
 {
-    free(it);
+    trace_free(it);
 }
 
 bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv)

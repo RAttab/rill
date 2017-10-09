@@ -74,7 +74,7 @@ static void vals_compact(struct vals *vals)
 static struct vals *vals_from_pairs(struct rill_pairs *pairs)
 {
     struct vals *vals =
-        calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * pairs->len);
+        trace_calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * pairs->len);
     if (!vals) return NULL;
 
     vals->len = pairs->len;
@@ -89,12 +89,12 @@ static struct vals *vals_merge(struct vals *vals, struct vals *merge)
 {
     if (!vals) {
         size_t len = sizeof(*vals) + sizeof(vals->data[0]) * merge->len;
-        vals = calloc(1, len);
+        vals = trace_calloc(1, len);
         memcpy(vals, merge, len);
         return vals;
     }
 
-    vals = realloc(vals,
+    vals = trace_realloc(vals,
             sizeof(*vals) + sizeof(vals->data[0]) * (vals->len + merge->len));
     if (!vals) {
         rill_fail("unable to allocate memory for vals: %lu + %lu",
