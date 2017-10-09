@@ -93,7 +93,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
             goto fail_stat;
         }
 
-        if (cap == rill_acc_read_only) return false;
+        if (cap == rill_acc_read_only) goto fail_read_only;
 
         create = true;
         acc->fd = open(file, O_RDWR | O_CREAT | O_EXCL | O_NOATIME, 0644);
@@ -158,6 +158,7 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
   fail_truncate:
     close(acc->fd);
   fail_open:
+  fail_read_only:
   fail_stat:
   fail_mkdir:
     free((char *) acc->dir);
@@ -191,15 +192,9 @@ void rill_acc_ingest(struct rill_acc *acc, rill_key_t key, rill_val_t val)
 
 bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
 {
-    struct rill_pairs *pairs = rill_pairs_new(acc->head->len);
-    if (!pairs) {
-        rill_fail("unable to allocate pairs for len '%lu'", acc->head->len);
-        return false;
-    }
-
     size_t start = atomic_load_explicit(&acc->head->read, memory_order_acquire);
     size_t end = atomic_load_explicit(&acc->head->write, memory_order_acquire);
-    if (start == end) goto done;
+    if (start == end) return true;
     assert(start < end);
 
     if (end - start > acc->head->len) {
@@ -208,15 +203,17 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
         start = end - acc->head->len;
     }
 
-    struct rill_pairs *ret = NULL;
+    struct rill_pairs *pairs = rill_pairs_new(end - start);
+    if (!pairs) {
+        rill_fail("unable to allocate pairs for len '%lu'", acc->head->len);
+        goto fail_pairs_alloc;
+    }
+
     for (size_t i = start; i < end; ++i) {
         size_t index = i % acc->head->len;
         struct kv *kv = &acc->data[index];
 
-        /* printf("read: [%lu] %lu/%lu -> %p{%lu, %lu}\n", */
-        /*         i, index, acc->head->len, (void *) kv, kv->key, kv->val); */
-
-        ret = rill_pairs_push(pairs, kv->key, kv->val);
+        struct rill_pairs *ret = rill_pairs_push(pairs, kv->key, kv->val);
         assert(ret == pairs);
     }
 
@@ -227,11 +224,11 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
 
     atomic_store_explicit(&acc->head->read, end, memory_order_release);
 
-  done:
     rill_pairs_free(pairs);
     return true;
 
   fail_write:
     rill_pairs_free(pairs);
+  fail_pairs_alloc:
     return false;
 }

@@ -365,11 +365,13 @@ bool rill_store_write(
 
     writer_close(&store, indexer, store.head->data_off + coder_off(&coder));
 
+    coder_close(&coder);
     indexer_free(indexer);
     free(vals);
     return true;
 
   fail_encode:
+    coder_close(&coder);
     writer_close(&store, indexer, 0);
     indexer_free(indexer);
   fail_open:
@@ -397,7 +399,9 @@ bool rill_store_merge(
         if (!list[i]) continue;
         vma_will_need(list[i]);
 
-        if (!(vals = vals_merge(vals, list[i]->vals))) goto fail_vals;
+        struct vals *ret = vals_merge(vals, list[i]->vals);
+        if (ret) { vals = ret; } else { goto fail_vals; }
+
         its[it_len].decoder = store_decoder(list[i]);
 
         cap += list[i]->vma_len;
@@ -454,16 +458,18 @@ bool rill_store_merge(
         if (list[i]) vma_dont_need(list[i]);
     }
 
+    coder_close(&encoder);
     indexer_free(indexer);
     free(vals);
     return true;
 
   fail_coder:
+    coder_close(&encoder);
     writer_close(&store, indexer, 0);
     indexer_free(indexer);
   fail_open:
-    free(vals);
   fail_vals:
+    free(vals);
     return false;
 }
 

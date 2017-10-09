@@ -96,7 +96,11 @@ static struct vals *vals_merge(struct vals *vals, struct vals *merge)
 
     vals = realloc(vals,
             sizeof(*vals) + sizeof(vals->data[0]) * (vals->len + merge->len));
-    if (!vals) return NULL;
+    if (!vals) {
+        rill_fail("unable to allocate memory for vals: %lu + %lu",
+                vals->len, merge->len);
+        return NULL;
+    }
 
     memcpy( vals->data + vals->len,
             merge->data,

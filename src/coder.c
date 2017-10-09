@@ -122,9 +122,12 @@ static bool coder_finish(struct encoder *coder)
 {
     if (!coder_write_sep(coder)) return false;
     if (!coder_write_sep(coder)) return false;
-
-    htable_reset(&coder->rev);
     return true;
+}
+
+static void coder_close(struct encoder *coder)
+{
+    htable_reset(&coder->rev);
 }
 
 static struct encoder make_encoder(

@@ -42,7 +42,10 @@ static struct indexer *indexer_alloc(size_t cap)
     assert(cap);
 
     struct indexer *indexer = calloc(1, sizeof(*indexer) + cap * sizeof(indexer->kvs[0]));
-    if (!indexer) return NULL;
+    if (!indexer) {
+        rill_fail("unable to allocate indexer: %lu", cap);
+        return NULL;
+    }
 
     indexer->cap = cap;
     return indexer;
