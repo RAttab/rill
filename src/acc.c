@@ -122,7 +122,9 @@ struct rill_acc *rill_acc_open(const char *dir, size_t cap)
         acc->vma_len = to_vma_len(len);
     }
 
-    acc->vma = mmap(NULL, acc->vma_len, PROT_READ | PROT_WRITE, MAP_SHARED, acc->fd, 0);
+    int prot = PROT_READ | PROT_WRITE;
+    int flags = MAP_SHARED | MAP_POPULATE;
+    acc->vma = mmap(NULL, acc->vma_len, prot, flags, acc->fd, 0);
     if (acc->vma == MAP_FAILED) {
         rill_fail_errno("unable to mmap '%s' of len '%lu'", file, acc->vma_len);
         goto fail_mmap;
