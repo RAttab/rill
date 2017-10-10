@@ -20,11 +20,9 @@ void rm(const char *path)
     DIR *dir = opendir(path);
     if (!dir) return;
 
-    struct dirent stream, *entry;
-    while (true) {
-        if (readdir_r(dir, &stream, &entry) == -1) abort();
-        else if (!entry) break;
-        else if (entry->d_type != DT_REG) continue;
+    struct dirent *entry = NULL;
+    while ((entry = readdir(dir))) {
+        if (entry->d_type != DT_REG) continue;
 
         char file[PATH_MAX];
         snprintf(file, sizeof(file), "%s/%s", path, entry->d_name);
