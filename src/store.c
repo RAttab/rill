@@ -571,13 +571,21 @@ struct rill_pairs *rill_store_scan_vals(
     struct rill_pairs *result = out;
     struct decoder coder = store_decoder(store);
 
+    rill_key_t current = 0;
+    size_t ix = 0;
+
     for (size_t i = 0; i < store->head->pairs; ++i) {
         if (!coder_decode(&coder, &kv)) goto fail;
         if (rill_kv_nil(&kv)) break;
 
-        for (size_t j = 0; j < len; ++j) {
-            if (kv.val != vals[j]) continue;
+        if (current != kv.key) {
+            ix = 0;
+            current = kv.key;
+        }
 
+        while (ix < len && vals[ix] < kv.val) ++ix;
+
+        if (vals[ix] == kv.val) {
             result = rill_pairs_push(result, kv.key, kv.val);
             if (!result) goto fail;
         }
