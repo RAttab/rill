@@ -92,7 +92,7 @@ static bool index_find(
 
     for (; i < index->len; ++i) {
         struct index_kv *kv = &index->data[i];
-        if (key > kv->key) break;
+        if (key < kv->key) break;
         if (key != kv->key) continue;
 
         *key_idx = i;

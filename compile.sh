@@ -36,4 +36,5 @@ gcc -o rill_historical_dump "${PREFIX}/src/rill_historical_dump.c" librill.a $CF
 gcc -o rill_rotate "${PREFIX}/src/rill_rotate.c" librill.a $CFLAGS
 
 gcc -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
+gcc -o test_indexer "${PREFIX}/test/indexer_test.c" librill.a $CFLAGS && ./test_indexer
 gcc -o test_rotate "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS
