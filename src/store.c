@@ -245,7 +245,7 @@ static bool writer_open(
 {
     store->file = file;
 
-    store->fd = open(file, O_RDWR | O_CREAT | O_EXCL, 0640);
+    store->fd = open(file, O_RDWR | O_CREAT | O_EXCL, 0644);
     if (store->fd == -1) {
         rill_fail_errno("unable to open '%s'", file);
         goto fail_open;
