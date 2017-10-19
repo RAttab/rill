@@ -111,18 +111,24 @@ struct rill_pairs *rill_query_vals(
     if (!len) return out;
 
     rill_val_t *sorted = malloc(sizeof(vals[0]) * len);
-    memcpy(sorted, vals, len);
+    if (!sorted) goto fail_alloc;
+
+    memcpy(sorted, vals, sizeof(vals[0]) * len);
     qsort(sorted, len, sizeof(vals[0]), compare_rill_values);
 
     struct rill_pairs *result = out;
     for (size_t i = 0; i < query->len; ++i) {
         result = rill_store_scan_vals(query->list[i], sorted, len, result);
-        if (!result) goto cleanup;
+        if (!result) goto fail_scan;
     }
 
     rill_pairs_compact(result);
-
-cleanup:
     free(sorted);
     return result;
+
+  fail_scan:
+    free(sorted);
+  fail_alloc:
+    // \todo potentially leaking result
+    return NULL;
 }
