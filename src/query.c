@@ -94,6 +94,15 @@ struct rill_pairs *rill_query_keys(
     return result;
 }
 
+static int compare_rill_values(const void *v1, const void *v2) {
+    const rill_val_t rv1 = *(rill_val_t*)v1;
+    const rill_val_t rv2 = *(rill_val_t*)v2;
+
+    if (rv1 > rv2) return 1;
+    if (rv1 < rv2) return -1;
+    return 0;
+}
+
 struct rill_pairs *rill_query_vals(
         const struct rill_query *query,
         const rill_val_t *vals, size_t len,
@@ -101,12 +110,19 @@ struct rill_pairs *rill_query_vals(
 {
     if (!len) return out;
 
+    rill_val_t *sorted = malloc(sizeof(vals[0]) * len);
+    memcpy(sorted, vals, len);
+    qsort(sorted, len, sizeof(vals[0]), compare_rill_values);
+
     struct rill_pairs *result = out;
     for (size_t i = 0; i < query->len; ++i) {
-        result = rill_store_scan_vals(query->list[i], vals, len, result);
-        if (!result) return result;
+        result = rill_store_scan_vals(query->list[i], sorted, len, result);
+        if (!result) goto cleanup;
     }
 
     rill_pairs_compact(result);
+
+cleanup:
+    free(sorted);
     return result;
 }

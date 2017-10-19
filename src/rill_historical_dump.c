@@ -54,7 +54,7 @@ static void read_table(const char *file, struct htable *table)
     ssize_t ret;
     while (true) {
         uint64_t len = 0;
-        assert(ret = read(fd, &len, sizeof(len)) >= 0);
+        assert((ret = read(fd, &len, sizeof(len))) >= 0);
         if (!ret || !len) break;
 
         char *name = calloc(len * 4 + 1, sizeof(*name));

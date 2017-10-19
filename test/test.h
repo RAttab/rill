@@ -53,9 +53,9 @@ void rm(const char *path)
     DIR *dir = opendir(path);
     if (!dir) return;
 
-    struct dirent stream, *entry;
+    struct dirent *entry;
     while (true) {
-        if (readdir_r(dir, &stream, &entry) == -1) abort();
+        if ((entry = readdir(dir))) abort();
         else if (!entry) break;
         else if (entry->d_type != DT_REG) continue;
 
