@@ -39,4 +39,5 @@ $CC -o rill_rotate "${PREFIX}/src/rill_rotate.c" librill.a $CFLAGS
 
 $CC -o test_indexer "${PREFIX}/test/indexer_test.c" librill.a $CFLAGS && ./test_indexer
 $CC -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
+$CC -o test_store "${PREFIX}/test/store_test.c" librill.a $CFLAGS && ./test_store
 $CC -o test_rotate "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS

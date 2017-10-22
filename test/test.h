@@ -43,6 +43,23 @@ struct rill_pairs *make_pair_impl(const struct rill_kv *kv, size_t len)
     return pairs;
 }
 
+enum { rng_range_key = 500, rng_range_val = 100 };
+
+struct rill_pairs *make_rng_pairs(struct rng *rng)
+{
+    enum { len = 1000 };
+    struct rill_pairs *pairs = rill_pairs_new(len);
+
+    for (size_t i = 0; i < len; ++i) {
+        uint64_t key = rng_gen_range(rng, 1, rng_range_key);
+        uint64_t val = rng_gen_range(rng, 1, rng_range_val);
+        pairs = rill_pairs_push(pairs, key, val);
+        assert(pairs);
+    }
+
+    return pairs;
+}
+
 
 // -----------------------------------------------------------------------------
 // rm

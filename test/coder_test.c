@@ -69,7 +69,7 @@ static struct vals *make_vals_impl(rill_val_t *list, size_t len)
     struct vals *vals = calloc(1, sizeof(struct vals) + sizeof(list[0]) * len);
 
     vals->len = len;
-    for (size_t i = 0; i < len; ++i) vals->data[i] = list[i];
+    memcpy(vals->data, list, sizeof(list[0]) * len);
 
     vals_compact(vals);
     return vals;
@@ -215,21 +215,11 @@ bool test_coder(void)
     check_coder(make_pair(kv(1, 10), kv(1, 20), kv(2, 10)));
 
     struct rng rng = rng_make(0);
-    for (size_t iterations = 0; iterations < 100; ++iterations) {
-
-        struct rill_pairs *pairs = rill_pairs_new(1000);
-        for (size_t i = 0; i < 1000; ++i) {
-            uint64_t key = rng_gen_range(&rng, 1, 500);
-            uint64_t val = rng_gen_range(&rng, 1, 100);
-            pairs = rill_pairs_push(pairs, key, val);
-        }
-
-        check_coder(pairs);
-    }
+    for (size_t iterations = 0; iterations < 100; ++iterations)
+        check_coder(make_rng_pairs(&rng));
 
     return true;
 }
-
 
 
 // -----------------------------------------------------------------------------
