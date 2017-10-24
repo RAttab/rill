@@ -565,6 +565,8 @@ struct rill_pairs *rill_store_scan_vals(
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out)
 {
+    if (!vals_contains(store->vals, vals, len)) return out;
+
     vma_will_need(store);
 
     struct rill_kv kv = {0};

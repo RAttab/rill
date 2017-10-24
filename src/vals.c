@@ -110,3 +110,14 @@ static struct vals *vals_merge(struct vals *vals, struct vals *merge)
     vals_compact(vals);
     return vals;
 }
+
+static bool vals_contains(
+        struct vals *vals, const rill_val_t *items, size_t len)
+{
+    for (size_t i = 0, j = 0; i < len; ++i) {
+        while (j < vals->len && vals->data[j] < items[i]) j++;
+        if (vals->data[j] == items[i]) return true;
+    }
+
+    return false;
+}
