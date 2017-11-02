@@ -81,20 +81,12 @@ struct rill_pairs *rill_pairs_new(size_t cap);
 void rill_pairs_free(struct rill_pairs *pairs);
 void rill_pairs_clear(struct rill_pairs *pairs);
 
+struct rill_pairs *rill_pairs_reserve(struct rill_pairs *pairs, size_t cap);
+
 struct rill_pairs *rill_pairs_push(
         struct rill_pairs *pairs, rill_key_t key, rill_val_t val);
 
 void rill_pairs_compact(struct rill_pairs *pairs);
-
-struct rill_pairs *rill_pairs_scan_key(
-        const struct rill_pairs *pairs,
-        const rill_key_t *keys, size_t len,
-        struct rill_pairs *out);
-
-struct rill_pairs *rill_pairs_scan_val(
-        const struct rill_pairs *pairs,
-        const rill_val_t *vals, size_t len,
-        struct rill_pairs *out);
 
 void rill_pairs_print(const struct rill_pairs *pairs);
 
@@ -125,6 +117,7 @@ const char * rill_store_file(const struct rill_store *store);
 rill_ts_t rill_store_ts(const struct rill_store *store);
 size_t rill_store_quant(const struct rill_store *store);
 size_t rill_store_vals(const struct rill_store *store);
+size_t rill_store_pairs(const struct rill_store *store);
 
 struct rill_pairs *rill_store_query_key(
         struct rill_store *store, rill_key_t key, struct rill_pairs *out);
@@ -191,6 +184,8 @@ struct rill_pairs *rill_query_vals(
         const struct rill_query *query,
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
+
+struct rill_pairs *rill_query_all(const struct rill_query *query);
 
 
 // -----------------------------------------------------------------------------

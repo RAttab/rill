@@ -56,22 +56,28 @@ void rill_pairs_clear(struct rill_pairs *pairs)
     pairs->len = 0;
 }
 
+struct rill_pairs *rill_pairs_reserve(struct rill_pairs *pairs, size_t cap)
+{
+    if (rill_likely(cap <= pairs->cap)) return pairs;
+    cap = adjust_cap(pairs->cap, cap);
+
+    pairs = realloc(pairs, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
+    if (!pairs) {
+        rill_fail("unable to realloc pairs: cap=%lu", cap);
+        return NULL;
+    }
+
+    pairs->cap = cap;
+    return pairs;
+}
+
 struct rill_pairs *rill_pairs_push(
         struct rill_pairs *pairs, rill_key_t key, rill_val_t val)
 {
     assert(key && val);
 
-    if (rill_unlikely(pairs->len + 1 > pairs->cap)) {
-        size_t cap = adjust_cap(pairs->cap, pairs->len + 1);
-
-        pairs = realloc(pairs, sizeof(*pairs) + cap * sizeof(pairs->data[0]));
-        if (!pairs) {
-            rill_fail("unable to realloc pairs: cap=%lu", cap);
-            return NULL;
-        }
-
-        pairs->cap = cap;
-    }
+    pairs = rill_pairs_reserve(pairs, pairs->len + 1);
+    if (!pairs) return NULL;
 
     pairs->data[pairs->len] = (struct rill_kv) { .key = key, .val = val };
     pairs->len++;
@@ -98,48 +104,6 @@ void rill_pairs_compact(struct rill_pairs *pairs)
 
     assert(j + 1 <= pairs->len);
     pairs->len = j + 1;
-}
-
-struct rill_pairs *rill_pairs_scan_key(
-        const struct rill_pairs *pairs,
-        const rill_key_t *keys, size_t len,
-        struct rill_pairs *out)
-{
-    struct rill_pairs *result = out;
-
-    for (size_t i = 0; i < pairs->len; ++i) {
-        const struct rill_kv *kv = &pairs->data[i];
-
-        for (size_t j = 0; j < len; ++j) {
-            if (kv->key != keys[j]) continue;
-
-            result = rill_pairs_push(result, kv->key, kv->val);
-            if (!result) return NULL;
-        }
-    }
-
-    return result;
-}
-
-struct rill_pairs *rill_pairs_scan_val(
-        const struct rill_pairs *pairs,
-        const rill_val_t *vals, size_t len,
-        struct rill_pairs *out)
-{
-    struct rill_pairs *result = out;
-
-    for (size_t i = 0; i < pairs->len; ++i) {
-        const struct rill_kv *kv = &pairs->data[i];
-
-        for (size_t j = 0; j < len; ++j) {
-            if (kv->val != vals[j]) continue;
-
-            result = rill_pairs_push(result, kv->key, kv->val);
-            if (!result) return NULL;
-        }
-    }
-
-    return result;
 }
 
 void rill_pairs_print(const struct rill_pairs *pairs)

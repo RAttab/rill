@@ -498,6 +498,11 @@ size_t rill_store_vals(const struct rill_store *store)
     return store->vals->len;
 }
 
+size_t rill_store_pairs(const struct rill_store *store)
+{
+    return store->head->pairs;
+}
+
 
 struct rill_pairs *rill_store_query_key(
         struct rill_store *store, rill_key_t key, struct rill_pairs *out)
