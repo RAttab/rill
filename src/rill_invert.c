@@ -54,19 +54,22 @@ int main(int argc, const char **argv)
     struct rill_kv kv;
     struct rill_store_it *it = rill_store_begin(src);
 
-    while (true) {
+    printf("%lu: reading...\n", shard_i);
+
+    do {
         if (!rill_store_it_next(it, &kv)) rill_exit(1);
-        if (rill_kv_nil(&kv)) break;
+        if (!rill_kv_nil(&kv))
+            pairs = rill_pairs_push(pairs, kv.val, kv.key);
 
-        pairs = rill_pairs_push(pairs, kv.val, kv.key);
-
-        if (pairs->len == pairs->cap) {
-            printf("writing shard '%lu'\n", shard_i);
+        if (pairs->len == pairs->cap || rill_kv_nil(&kv)) {
+            printf("%lu: compacting...\n", shard_i);
 
             rill_pairs_compact(pairs);
 
             char path[256];
             snprintf(path, sizeof(path), "%s.%lu", argv[2], shard_i);
+            printf("%lu: writing '%s'...\n", shard_i, path);
+
             if (!rill_store_write(path, ts, quant, pairs)) rill_exit(1);
 
             shard[shard_i] = rill_store_open(path);
@@ -74,11 +77,13 @@ int main(int argc, const char **argv)
 
             shard_i++;
             rill_pairs_clear(pairs);
+            printf("%lu: reading...\n", shard_i);
         }
-    }
 
-    fprintf(stderr, "merging...\n");
-    rill_store_merge(argv[2], ts, quant, shard, shards);
+    } while (!rill_kv_nil(&kv));
+
+    fprintf(stderr, "merging to '%s'...\n", argv[2]);
+    if (!rill_store_merge(argv[2], ts, quant, shard, shards)) rill_exit(1);
 
     for (size_t i = 0; i < shards; ++i) rill_store_rm(shard[i]);
 
