@@ -17,7 +17,7 @@ struct rill_packed index_kv
 struct rill_packed index
 {
     uint64_t len;
-    uint64_t slope;
+    uint64_t __unused; // kept for backwards compatibility
     struct index_kv data[];
 };
 
@@ -68,39 +68,31 @@ static size_t indexer_write(struct indexer *indexer, struct index *index)
 {
     index->len = indexer->len;
 
-    uint64_t min = indexer->kvs[0].key;
-    uint64_t max = indexer->kvs[indexer->len - 1].key;
-    index->slope = (max - min) / indexer->len;
-    if (!index->slope) index->slope = 1;
-
     size_t len = indexer->len * sizeof(indexer->kvs[0]);
     memcpy(index->data, indexer->kvs, len);
 
     return sizeof(*index) + len;
 }
 
-// One pass interpolation search. We assume that the keys are hashes and
-// therefore uniformly distributed. So a single jump should get us close enough
-// to our goal.
+// RIP fancy pants interpolation search :(
 static bool index_find(
         struct index *index, rill_key_t key, size_t *key_idx, uint64_t *off)
 {
-    size_t i = (key - index->data[0].key) / index->slope;
-    if (i >= index->len) i = index->len - 1;
+    size_t idx = 0;
+    size_t len = index->len;
+    struct index_kv *low = index->data;
 
-    while (i && key < index->data[i].key) i--;
-
-    for (; i < index->len; ++i) {
-        struct index_kv *kv = &index->data[i];
-        if (key < kv->key) break;
-        if (key != kv->key) continue;
-
-        *key_idx = i;
-        *off = kv->off;
-        return true;
+    while (len > 1) {
+        size_t mid = len / 2;
+        if (key < low[mid].key) len = mid;
+        else { low += mid; len -= mid; idx += mid;}
     }
 
-    return false;
+    struct index_kv *kv = &index->data[idx];
+    if (kv->key != key) return false;
+    *key_idx = idx;
+    *off = kv->off;
+    return true;
 }
 
 static rill_key_t index_get(struct index *index, size_t i)

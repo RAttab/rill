@@ -24,7 +24,6 @@ bool test_indexer_build(void)
 
     size_t n_written = indexer_write(indexer, index);
     assert(n_written == size);
-    assert(index->slope == (data[CAP - 1] - data[0]) / CAP);
 
     indexer_free(indexer);
 
