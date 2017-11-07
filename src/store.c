@@ -403,7 +403,7 @@ bool rill_store_merge(
         if (ret) { vals = ret; } else { goto fail_vals; }
 
         its[it_len].decoder = store_decoder(list[i]);
-        pairs += list[i]->head->keys;
+        pairs += list[i]->head->pairs;
         it_len++;
     }
     assert(it_len);
