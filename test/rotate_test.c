@@ -22,13 +22,13 @@ bool test_rotate(void)
     {
         struct rill_acc *acc = rill_acc_open(dir, 1);
 
-        for (rill_ts_t ts = 0; ts < 13 * month_secs; ts += step) {
+        for (rill_ts_t ts = 0; ts < expire_secs; ts += step) {
             rill_acc_ingest(acc, key, ts + 1);
             rill_rotate(dir, ts);
         }
 
         rill_acc_close(acc);
-        rill_rotate(dir, 13 * month_secs);
+        rill_rotate(dir, expire_secs);
     }
 
     {
@@ -37,7 +37,7 @@ bool test_rotate(void)
         rill_query_close(query);
 
         size_t i = 0;
-        for (rill_ts_t ts = 0; ts < 13 * month_secs; ts += step) {
+        for (rill_ts_t ts = 0; ts < expire_secs; ts += step) {
             assert(pairs->data[i].key == key);
             assert(pairs->data[i].val == ts + 1);
             ++i;
@@ -47,7 +47,7 @@ bool test_rotate(void)
     }
 
     for (size_t i = 1; i <= 6; ++i)
-        rill_rotate(dir, (13 + i) * month_secs);
+        rill_rotate(dir, (months_in_expire + i) * month_secs);
 
     {
         struct rill_query *query = rill_query_open(dir);

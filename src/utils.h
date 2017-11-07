@@ -60,7 +60,7 @@ enum
     hours_in_day = 24,
     days_in_week = 8, // more closely approximates a month
     weeks_in_month = 4,
-    months_in_expire = 13,
+    months_in_expire = 16,
 
     sec_secs = 1,
     min_secs = 60 * sec_secs,
