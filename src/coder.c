@@ -77,7 +77,11 @@ static uint64_t coder_off(struct encoder *coder)
 
 static inline bool coder_write_sep(struct encoder *coder)
 {
-    if (rill_unlikely(coder->it + 1 > coder->end)) return false;
+    if (rill_unlikely(coder->it + 1 > coder->end)) {
+        rill_fail("not enough space to write sep: %p + 1 > %p\n",
+                (void *) coder->it, (void *) coder->end);
+        return false;
+    }
 
     *coder->it = 0;
     coder->it++;
@@ -92,7 +96,11 @@ static inline bool coder_write_val(struct encoder *coder, rill_val_t val)
     uint8_t buffer[coder_max_val_len];
     size_t len = leb128_encode(buffer, val) - buffer;
 
-    if (rill_unlikely(coder->it + len > coder->end)) return false;
+    if (rill_unlikely(coder->it + len > coder->end)) {
+        rill_fail("not enough space to write val: %p + %lu > %p\n",
+                (void *) coder->it, len, (void *) coder->end);
+        return false;
+    }
 
     memcpy(coder->it, buffer, len);
     coder->it += len;
