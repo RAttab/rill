@@ -387,7 +387,7 @@ bool rill_store_merge(
 {
     assert(list_len > 1);
 
-    size_t cap = 0, pairs = 0;
+    size_t pairs = 0;
     struct vals *vals = NULL;
     struct it {
         struct rill_kv kv;
@@ -403,15 +403,13 @@ bool rill_store_merge(
         if (ret) { vals = ret; } else { goto fail_vals; }
 
         its[it_len].decoder = store_decoder(list[i]);
-
-        cap += list[i]->vma_len;
         pairs += list[i]->head->keys;
         it_len++;
     }
-
     assert(it_len);
 
     struct rill_store store = {0};
+    size_t cap = vals_cap(vals) + coder_cap(pairs) + indexer_cap(pairs);
     if (!writer_open(&store, file, cap, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
