@@ -72,8 +72,7 @@ void rm(const char *path)
 
     struct dirent *entry;
     while (true) {
-        if ((entry = readdir(dir))) abort();
-        else if (!entry) break;
+        if (!(entry = readdir(dir))) break;
         else if (entry->d_type != DT_REG) continue;
 
         char file[PATH_MAX];
