@@ -637,10 +637,8 @@ bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv)
 
 void rill_store_print_head(struct rill_store *store)
 {
-    printf("%s\n", store->file);
-    printf("magic:   0x%x\n", store->head->magic);
+    printf("file:    %s\n", store->file);
     printf("version: %u\n", store->head->version);
-    printf("stamp:   %p\n", (void *) store->head->stamp);
     printf("ts:      %lu\n", store->head->ts);
     printf("quant:   %lu\n", store->head->quant);
     printf("keys:    %lu\n", store->head->keys);
@@ -662,10 +660,10 @@ void rill_store_print(struct rill_store *store)
         if (!coder_decode(&coder, &kv)) goto fail;
         if (rill_kv_nil(&kv)) break;
 
-        if (kv.key == key) printf(", %lu", kv.val);
+        if (kv.key == key) printf(", %p", (void *) kv.val);
         else {
             if (key != no_key) printf("]\n");
-            printf("%p: [ %lu", (void *) kv.key, kv.val);
+            printf("%p: [ %p", (void *) kv.key, (void *) kv.val);
             key = kv.key;
         }
     }
