@@ -240,7 +240,8 @@ bool rill_store_rm(struct rill_store *store)
 
 static bool writer_open(
         struct rill_store *store,
-        const char *file, size_t cap,
+        const char *file,
+        struct vals *vals, size_t pairs,
         rill_ts_t ts, size_t quant)
 {
     store->file = file;
@@ -251,7 +252,12 @@ static bool writer_open(
         goto fail_open;
     }
 
-    size_t len = sizeof(struct header) + cap;
+    size_t len =
+        sizeof(struct header) +
+        vals_cap(vals) +
+        coder_cap(vals->len, pairs) +
+        indexer_cap(pairs);
+
     if (ftruncate(store->fd, len) == -1) {
         rill_fail_errno("unable to resize '%s'", file);
         goto fail_truncate;
@@ -344,10 +350,8 @@ bool rill_store_write(
     struct vals *vals = vals_from_pairs(pairs);
     if (!vals) goto fail_vals;
 
-    size_t cap = vals_cap(vals) + coder_cap(pairs->len) + indexer_cap(pairs->len);
-
     struct rill_store store = {0};
-    if (!writer_open(&store, file, cap, ts, quant)) {
+    if (!writer_open(&store, file, vals, pairs->len, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
@@ -409,8 +413,7 @@ bool rill_store_merge(
     assert(it_len);
 
     struct rill_store store = {0};
-    size_t cap = vals_cap(vals) + coder_cap(pairs) + indexer_cap(pairs);
-    if (!writer_open(&store, file, cap, ts, quant)) {
+    if (!writer_open(&store, file, vals, pairs, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
     }

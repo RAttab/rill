@@ -64,9 +64,12 @@ struct encoder
     size_t pairs;
 };
 
-static size_t coder_cap(size_t pairs)
+static size_t coder_cap(size_t vals, size_t pairs)
 {
-    return coder_max_val_len * (pairs + 1);
+    size_t bytes = 1;
+    while (vals >= 1UL << (bytes * 7)) bytes++;
+
+    return bytes * (pairs + 1);
 }
 
 static uint64_t coder_off(struct encoder *coder)
