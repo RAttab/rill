@@ -34,9 +34,10 @@ ar rcs librill.a $OBJ
 $CC -o rill_load "${PREFIX}/src/rill_load.c" librill.a $CFLAGS
 $CC -o rill_dump "${PREFIX}/src/rill_dump.c" librill.a $CFLAGS
 $CC -o rill_query "${PREFIX}/src/rill_query.c" librill.a $CFLAGS
-$CC -o rill_historical_dump "${PREFIX}/src/rill_historical_dump.c" librill.a $CFLAGS
 $CC -o rill_rotate "${PREFIX}/src/rill_rotate.c" librill.a $CFLAGS
 $CC -o rill_invert "${PREFIX}/src/rill_invert.c" librill.a $CFLAGS
+$CC -o rill_ingest "${PREFIX}/src/rill_ingest.c" librill.a $CFLAGS
+$CC -o rill_historical_dump "${PREFIX}/src/rill_historical_dump.c" librill.a $CFLAGS
 
 $CC -o test_indexer "${PREFIX}/test/indexer_test.c" librill.a $CFLAGS && ./test_indexer
 $CC -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
