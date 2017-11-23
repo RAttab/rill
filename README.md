@@ -47,6 +47,7 @@ Basic design philosophy:
 - Immutable
 - Mutation through merge operation
 - All pairs are sorted
+- Memory mapped and queried directly.
 
 
 #### Compression
@@ -85,7 +86,7 @@ We must also be able to quickly query a single key and extract all the
 associated values for that key. Our compression requirements puts a bound on the
 size of our index. A general sketch of the index is as follows:
 
-- Don't duplicate keys
+- Don't repeat keys
 - Store the keys along with the offset of their value location in a table
 - Search the table via tweaked binary search
 
