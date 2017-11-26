@@ -36,37 +36,18 @@ int main(int argc, char **argv)
     if (!ts || !quant || !output) usage();
     if (optind >= argc) usage();
 
-    struct rill_store *merge[64] = {0};
-
-    for (; optind < argc; optind++) {
-        struct rill_store *store = rill_store_open(argv[optind]);
-        if (!store) rill_exit(1);
-
-        for (size_t i = 0; i < 64; ++i) {
-            if (!merge[i]) { merge[i] = store; break; }
-
-            printf("merging: %lu\n", i);
-
-            char out[PATH_MAX];
-            snprintf(out, sizeof(out), "%s.rill.%lu", argv[optind], i);
-
-            struct rill_store *list[2] = { store, merge[i] };
-            if (!rill_store_merge(out, ts, quant, list, 2)) rill_exit(1);
-
-            store = rill_store_open(out);
-            if (!store) rill_exit(1);
-
-            merge[i] = NULL;
-            rill_store_rm(list[0]);
-            rill_store_rm(list[1]);
-        }
+    size_t len = argc - optind;
+    struct rill_store *stores[len];
+    for (size_t i = 0; i < len; i++, optind++) {
+        stores[i] = rill_store_open(argv[optind]);
+        if (!stores[i]) rill_exit(1);
     }
 
-    if (!rill_store_merge(output, ts, quant, merge, 64)) rill_exit(1);
-    for (size_t i = 0; i < 64; ++i) {
-        if (!merge[i]) continue;
-        rill_store_rm(merge[i]);
-    }
+    if (!rill_store_merge(output, ts, quant, stores, len))
+        rill_exit(1);
+
+    for (size_t i = 0; i < len; ++i)
+        rill_store_rm(stores[i]);
 
     return 0;
 }

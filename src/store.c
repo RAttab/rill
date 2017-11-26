@@ -391,12 +391,12 @@ bool rill_store_merge(
 {
     assert(list_len > 1);
 
+    size_t keys = 0;
     size_t pairs = 0;
     struct vals *vals = NULL;
-    struct it {
-        struct rill_kv kv;
-        struct decoder decoder;
-    } its[list_len];
+
+    struct decoder decoders[list_len];
+    struct rill_kv kvs[list_len];
 
     size_t it_len = 0;
     for (size_t i = 0; i < list_len; ++i) {
@@ -406,8 +406,9 @@ bool rill_store_merge(
         struct vals *ret = vals_merge(vals, list[i]->vals);
         if (ret) { vals = ret; } else { goto fail_vals; }
 
-        its[it_len].decoder = store_decoder(list[i]);
+        decoders[it_len] = store_decoder(list[i]);
         pairs += list[i]->head->pairs;
+        keys += list[i]->head->keys;
         it_len++;
     }
     assert(it_len);
@@ -418,11 +419,13 @@ bool rill_store_merge(
         goto fail_open;
     }
 
-    struct indexer *indexer = indexer_alloc(pairs);
+    struct indexer *indexer = indexer_alloc(keys);
+    if (!indexer) goto fail_index;
+
     struct encoder encoder = writer_begin(&store, vals, indexer);
 
     for (size_t i = 0; i < it_len; ++i) {
-        if (!(coder_decode(&its[i].decoder, &its[i].kv))) goto fail_coder;
+        if (!(coder_decode(&decoders[i], &kvs[i]))) goto fail_coder;
     }
 
     struct rill_kv prev = {0};
@@ -430,21 +433,25 @@ bool rill_store_merge(
     while (it_len > 0) {
         size_t target = 0;
         for (size_t i = 1; i < it_len; ++i) {
-            if (rill_kv_cmp(&its[i].kv, &its[target].kv) < 0)
+            if (rill_kv_cmp(&kvs[i], &kvs[target]) < 0)
                 target = i;
         }
 
-        struct it *it = &its[target];
-        if (rill_likely(rill_kv_nil(&prev) || rill_kv_cmp(&prev, &it->kv) < 0)) {
-            prev = it->kv;
-            if (!coder_encode(&encoder, &it->kv)) goto fail_coder;
+        struct rill_kv *kv = &kvs[target];
+        struct decoder *decoder = &decoders[target];
+        if (rill_likely(rill_kv_nil(&prev) || rill_kv_cmp(&prev, kv) < 0)) {
+            if (!coder_encode(&encoder, kv)) goto fail_coder;
+            prev = *kv;
         }
 
-        if (!coder_decode(&it->decoder, &it->kv)) goto fail_coder;
-        if (rill_unlikely(rill_kv_nil(&it->kv))) {
-            memmove(its + target,
-                    its + target + 1,
-                    (it_len - target - 1) * sizeof(its[0]));
+        if (!coder_decode(decoder, kv)) goto fail_coder;
+        if (rill_unlikely(rill_kv_nil(kv))) {
+            memmove(kvs + target,
+                    kvs + target + 1,
+                    (it_len - target - 1) * sizeof(kvs[0]));
+            memmove(decoders + target,
+                    decoders + target + 1,
+                    (it_len - target - 1) * sizeof(decoders[0]));
             it_len--;
         }
     }
@@ -468,6 +475,7 @@ bool rill_store_merge(
     coder_close(&encoder);
     writer_close(&store, indexer, 0);
     indexer_free(indexer);
+  fail_index:
   fail_open:
   fail_vals:
     free(vals);
