@@ -492,6 +492,11 @@ const char * rill_store_file(const struct rill_store *store)
     return store->file;
 }
 
+unsigned rill_store_version(const struct rill_store *store)
+{
+    return store->head->version;
+}
+
 rill_ts_t rill_store_ts(const struct rill_store *store)
 {
     return store->head->ts;
@@ -500,6 +505,11 @@ rill_ts_t rill_store_ts(const struct rill_store *store)
 size_t rill_store_quant(const struct rill_store *store)
 {
     return store->head->quant;
+}
+
+size_t rill_store_keys(const struct rill_store *store)
+{
+    return store->index->len;
 }
 
 size_t rill_store_vals(const struct rill_store *store)
@@ -620,6 +630,17 @@ size_t rill_store_dump_vals(
     return len;
 }
 
+size_t rill_store_dump_keys(
+        const struct rill_store *store, rill_key_t *out, size_t cap)
+{
+    size_t len = cap < store->index->len ? cap : store->index->len;
+
+    for (size_t i = 0; i < len; ++i)
+        out[i] = store->index->data[i].key;
+
+    return len;
+}
+
 
 struct rill_store_it { struct decoder decoder; };
 
@@ -640,44 +661,4 @@ void rill_store_it_free(struct rill_store_it *it)
 bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv)
 {
     return coder_decode(&it->decoder, kv);
-}
-
-
-void rill_store_print_head(struct rill_store *store)
-{
-    printf("file:    %s\n", store->file);
-    printf("version: %u\n", store->head->version);
-    printf("ts:      %lu\n", store->head->ts);
-    printf("quant:   %lu\n", store->head->quant);
-    printf("keys:    %lu\n", store->head->keys);
-    printf("vals:    %lu\n", store->vals->len);
-    printf("pairs:   %lu\n", store->head->pairs);
-}
-
-void rill_store_print(struct rill_store *store)
-{
-    vma_will_need(store);
-
-    struct rill_kv kv = {0};
-    struct decoder coder = store_decoder(store);
-
-    const rill_key_t no_key = -1ULL;
-    rill_key_t key = no_key;
-
-    for (size_t i = 0; i < store->head->pairs; ++i) {
-        if (!coder_decode(&coder, &kv)) goto fail;
-        if (rill_kv_nil(&kv)) break;
-
-        if (kv.key == key) printf(", %p", (void *) kv.val);
-        else {
-            if (key != no_key) printf("]\n");
-            printf("%p: [ %p", (void *) kv.key, (void *) kv.val);
-            key = kv.key;
-        }
-    }
-
-    printf(" ]\n");
-
-  fail:
-    vma_dont_need(store);
 }

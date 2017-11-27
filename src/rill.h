@@ -114,8 +114,10 @@ bool rill_store_merge(
 bool rill_store_rm(struct rill_store *store);
 
 const char * rill_store_file(const struct rill_store *store);
+unsigned rill_store_version(const struct rill_store *store);
 rill_ts_t rill_store_ts(const struct rill_store *store);
 size_t rill_store_quant(const struct rill_store *store);
+size_t rill_store_keys(const struct rill_store *store);
 size_t rill_store_vals(const struct rill_store *store);
 size_t rill_store_pairs(const struct rill_store *store);
 
@@ -130,15 +132,14 @@ struct rill_pairs *rill_store_scan_vals(
         const rill_val_t *vals, size_t len,
         struct rill_pairs *out);
 
+size_t rill_store_dump_keys(
+        const struct rill_store *store, rill_val_t *out, size_t cap);
 size_t rill_store_dump_vals(
         const struct rill_store *store, rill_val_t *out, size_t cap);
 
 struct rill_store_it *rill_store_begin(struct rill_store *store);
 void rill_store_it_free(struct rill_store_it *it);
 bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv);
-
-void rill_store_print_head(struct rill_store *store);
-void rill_store_print(struct rill_store *store);
 
 
 // -----------------------------------------------------------------------------

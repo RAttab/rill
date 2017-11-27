@@ -26,6 +26,38 @@ void usage()
     exit(1);
 }
 
+uint64_t read_u64(char *arg)
+{
+    size_t n = strnlen(arg, 128);
+
+    bool is_hex = false;
+    if (n > 2 && arg[0] == '0' && arg[1] == 'x') {
+        if (n > 2 + 16) {
+            rill_fail("value too big '%s'\n", arg);
+            rill_exit(1);
+        }
+
+        is_hex = true;
+    }
+
+    uint64_t value = 0;
+
+    for (size_t i = 2; i < n; ++i) {
+        char c = arg[i];
+        value *= is_hex ? 16 : 10;
+
+        if (c >= '0' && c <= '9') value += c - '0';
+        else if (is_hex && c >= 'a' && c <= 'f') value += c - 'a' + 10;
+        else if (is_hex && c >= 'A' && c <= 'F') value += c - 'A' + 10;
+        else {
+            rill_fail("invalid character '%c' in '%s'\n", c, arg);
+            rill_exit(1);
+        }
+    }
+
+    return value;
+}
+
 int main(int argc, char *argv[])
 {
     rill_key_t key = 0;
@@ -34,8 +66,8 @@ int main(int argc, char *argv[])
     int opt = 0;
     while ((opt = getopt(argc, argv, "k:v:")) != -1) {
         switch (opt) {
-        case 'k': key = atoi(optarg); break;
-        case 'v': val = atoi(optarg); break;
+        case 'k': key = read_u64(optarg); break;
+        case 'v': val = read_u64(optarg); break;
         default: usage(); exit(1);
         }
     }
@@ -69,7 +101,7 @@ int main(int argc, char *argv[])
     if (!pairs) rill_exit(1);
 
     for (size_t i = 0; i < pairs->len; ++i) {
-        if (key) printf("%lu\n", pairs->data[i].val);
+        if (key) printf("%p\n", (void *) pairs->data[i].val);
         else printf("%p\n", (void *) pairs->data[i].key);
     }
 
