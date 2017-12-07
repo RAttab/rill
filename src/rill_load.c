@@ -33,6 +33,14 @@ void rm(const char *path)
     rmdir(path);
 }
 
+void acc_dump(struct rill_acc *acc, const char *dir, rill_ts_t ts)
+{
+    char file[PATH_MAX];
+    snprintf(file, sizeof(file), "%s/%010lu.rill", dir, ts);
+
+    if (!rill_acc_write(acc, file, ts)) rill_abort();
+}
+
 int main(int argc, char **argv)
 {
     (void) argc, (void) argv;
@@ -65,12 +73,15 @@ int main(int argc, char **argv)
         }
 
         if (ts % rotation_rate == 0) {
+            acc_dump(acc, "db", ts);
             if (!rill_rotate("db", ts)) rill_abort();
         }
     }
 
-    rill_acc_close(acc);
-    if (!rill_rotate("db", seconds + 60 * 60)) rill_abort();
+    rill_ts_t ts = seconds + 60 * 60;
+    acc_dump(acc, "db", ts);
+    if (!rill_rotate("db", ts)) rill_abort();
 
+    rill_acc_close(acc);
     return 0;
 }

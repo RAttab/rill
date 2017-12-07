@@ -21,18 +21,6 @@
 // rotate
 // -----------------------------------------------------------------------------
 
-static void rotate_acc(const char *dir, rill_ts_t now)
-{
-    struct rill_acc *acc = rill_acc_open(dir, rill_acc_read_only);
-    if (!acc) return;
-
-    char file[PATH_MAX];
-    snprintf(file, sizeof(file), "%s/%010lu.rill", dir, now);
-
-    (void) rill_acc_write(acc, file, now);
-    rill_acc_close(acc);
-}
-
 static ssize_t expire(rill_ts_t now, struct rill_store **list, ssize_t len)
 {
     if (len < 0) return len;
@@ -216,8 +204,6 @@ bool rill_rotate(const char *dir, rill_ts_t now)
     int fd = lock(dir);
     if (!fd) return true;
     if (fd == -1) return false;
-
-    rotate_acc(dir, now);
 
     enum { cap = 1024 };
     struct rill_store *list[cap];
