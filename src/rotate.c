@@ -12,6 +12,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <limits.h>
 #include <unistd.h>
 
@@ -182,8 +183,40 @@ static int store_cmp(const void *l, const void *r)
     return 0;
 }
 
+// Note that an flock is released on process termination on linux. This means
+// that we don't have to worry about cleaning up in case of segfaults or signal
+// termination.
+static int lock(const char *dir)
+{
+    int fd = open(dir, O_DIRECTORY | O_RDONLY);
+    if (fd == -1) {
+        rill_fail_errno("unable to open: %s\n", dir);
+        return -1;
+    }
+
+    if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+        if (errno == EWOULDBLOCK) return 0;
+
+        rill_fail_errno("unable acquire flock on '%s'\n", dir);
+        close(fd);
+        return -1;
+    }
+
+    return fd;
+}
+
+static void unlock(int fd)
+{
+    flock(fd, LOCK_UN);
+    close(fd);
+}
+
 bool rill_rotate(const char *dir, rill_ts_t now)
 {
+    int fd = lock(dir);
+    if (!fd) return true;
+    if (fd == -1) return false;
+
     rotate_acc(dir, now);
 
     enum { cap = 1024 };
@@ -202,5 +235,6 @@ bool rill_rotate(const char *dir, rill_ts_t now)
         if (list[i]) rill_store_close(list[i]);
     }
 
+    unlock(fd);
     return len >= 0;
 }
