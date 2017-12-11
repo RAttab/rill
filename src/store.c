@@ -189,11 +189,9 @@ struct rill_store *rill_store_open(const char *file)
         goto fail_version;
     }
 
-    if (store->head->version >= 4) {
-        if (store->head->stamp != stamp) {
-            rill_fail("invalid stamp '%p' for '%s'", (void *) store->head->stamp, file);
-            goto fail_stamp;
-        }
+    if (store->head->stamp != stamp) {
+        rill_fail("invalid stamp '%p' for '%s'", (void *) store->head->stamp, file);
+        goto fail_stamp;
     }
 
     return store;
