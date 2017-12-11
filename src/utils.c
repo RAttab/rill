@@ -86,7 +86,7 @@ static bool is_rill_file(const char *name)
     size_t len = strnlen(name, NAME_MAX);
     if (len < sizeof(ext)) return false;
 
-    return !strcmp(name + (len - sizeof(ext) + 1), ext);
+    return strstr(name, ext);
 }
 
 size_t rill_scan_dir(const char *dir, struct rill_store **list, size_t cap)

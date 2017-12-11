@@ -125,6 +125,15 @@ static ssize_t merge_quant(
         assert(end > start);
 
         size_t next_ts = i + 1 != (size_t) len ? rill_store_ts(list[i + 1]) : -1UL;
+
+        // Useful for debugging
+        /* printf("[%lu,%lu] file=%s, now=%lu(%lu), ts=%lu(%lu), next=%lu(%lu), earliest=%lu(%lu)\n", */
+        /*         quant, i, rill_store_file(list[i]), now, now / quant, */
+        /*         rill_store_ts(list[i]), rill_store_ts(list[i]) / quant, */
+        /*         i + 1 != (size_t) len ? rill_store_ts(list[i + 1]) : 0, */
+        /*         i + 1 != (size_t) len ? rill_store_ts(list[i + 1]) / quant : 0, */
+        /*         rill_store_ts(list[start]), rill_store_ts(list[start]) / quant); */
+
         if (next_ts / quant == current_quant) continue;
 
         rill_ts_t earliest_ts = rill_store_ts(list[start]);
