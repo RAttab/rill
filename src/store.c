@@ -312,9 +312,11 @@ static void writer_close(
         struct rill_store *store, struct indexer *indexer, size_t len)
 {
     if (len) {
+        assert(len <= store->vma_len);
+
         store->head->index_off = len;
         store->index = (void *) ((uintptr_t) store->vma + store->head->index_off);
-        len += indexer_write(indexer, store->index);
+        len += indexer_write(indexer, store->index, store->vma_len - len);
 
         if (ftruncate(store->fd, len) == -1)
             rill_fail_errno("unable to resize '%s'", store->file);

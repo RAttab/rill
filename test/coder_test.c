@@ -144,7 +144,9 @@ void check_coder(struct rill_pairs *pairs)
     size_t cap = (pairs->len + 1) * (sizeof(pairs->data[0]) + 3);
     uint8_t *buffer = calloc(1, cap);
     struct vals *vals = vals_from_pairs(pairs);
-    struct index *index = calloc(1, sizeof(*index) + pairs->len * sizeof(index->data[0]));
+
+    size_t index_cap = sizeof(struct index) + pairs->len * sizeof(struct index_kv);
+    struct index *index = calloc(1, index_cap);
 
     size_t len = 0;
     {
@@ -157,7 +159,7 @@ void check_coder(struct rill_pairs *pairs)
         len = coder.it - buffer;
         assert(len <= cap);
 
-        indexer_write(indexer, index);
+        indexer_write(indexer, index, index_cap);
         indexer_free(indexer);
     }
 

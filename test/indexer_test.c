@@ -22,7 +22,7 @@ bool test_indexer_build(void)
     struct index *index = calloc(1, size);
     assert(index);
 
-    size_t n_written = indexer_write(indexer, index);
+    size_t n_written = indexer_write(indexer, index, size);
     assert(n_written == size);
 
     indexer_free(indexer);
@@ -43,7 +43,7 @@ static struct index *make_index(rill_key_t *data, size_t n)
         indexer_put(indexer, data[i], i);
 
     struct index *index = calloc(1, indexer_cap(n));
-    indexer_write(indexer, index);
+    indexer_write(indexer, index, indexer_cap(n));
     indexer_free(indexer);
 
     return index;
