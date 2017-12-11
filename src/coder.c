@@ -69,7 +69,8 @@ static size_t coder_cap(size_t vals, size_t pairs)
     size_t bytes = 1;
     while (vals >= 1UL << (bytes * 7)) bytes++;
 
-    return bytes * (pairs + 1);
+    return (bytes + 1) // + 1 -> end-of-values terminator
+        * (pairs + 1); // + 1 -> end-of-pairs terminator
 }
 
 static uint64_t coder_off(struct encoder *coder)
