@@ -77,8 +77,10 @@ int main(int argc, char **argv)
         struct rill_store_it *it = rill_store_begin(store);
 
         printf("pairs:\n");
-        while (rill_store_it_next(it, &kv))
+        while (rill_store_it_next(it, &kv)) {
+            if (rill_kv_nil(&kv)) break;
             printf("  %p %p\n", (void *) kv.key, (void *) kv.val);
+        }
 
         rill_store_it_free(it);
     }
