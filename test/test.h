@@ -57,6 +57,8 @@ struct rill_pairs *make_rng_pairs(struct rng *rng)
         assert(pairs);
     }
 
+    rill_pairs_compact(pairs);
+
     return pairs;
 }
 
