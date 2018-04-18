@@ -12,77 +12,102 @@
 
 void usage()
 {
-    fprintf(stderr, "rill_dump [-h] [-k] [-v] [-p] <file>\n");
+    fprintf(stderr, "rill_dump [-h] [-k] [-p] [-m] -<a|b> <file>\n");
     exit(1);
 }
 
 int main(int argc, char **argv)
 {
     bool header = false;
-    bool keys = false;
-    bool vals = false;
+    bool key = false;
     bool pairs = false;
+    bool a = false;
+    bool b = false;
+    bool space = false;
 
     int opt = 0;
-    while ((opt = getopt(argc, argv, "+hkvp")) != -1) {
+    while ((opt = getopt(argc, argv, "+habkpm")) != -1) {
         switch (opt) {
         case 'h': header = true; break;
-        case 'k': keys = true; break;
-        case 'v': vals = true; break;
+        case 'k': key = true; break;
         case 'p': pairs = true; break;
+        case 'a': a = true; break;
+        case 'b': b = true; break;
+        case 'm': space = true; break;
         default:
             fprintf(stderr, "unknown argument: %c\n", opt);
             usage();
         }
     }
 
-    if (!header && !keys && !vals && !pairs) usage();
+    if (!header && !a && !b && !a && !pairs && !key && !space) usage();
     if (optind >= argc) usage();
 
     struct rill_store *store = rill_store_open(argv[optind]);
     if (!store) rill_exit(1);
 
     if (header) {
-        printf("file:    %s\n", rill_store_file(store));
-        printf("version: %u\n", rill_store_version(store));
-        printf("ts:      %lu\n", rill_store_ts(store));
-        printf("quant:   %lu\n", rill_store_quant(store));
-        printf("keys:    %lu\n", rill_store_keys(store));
-        printf("vals:    %lu\n", rill_store_vals(store));
-        printf("pairs:   %lu\n", rill_store_pairs(store));
+        printf("file:        %s\n", rill_store_file(store));
+        printf("version:     %u\n", rill_store_version(store));
+        printf("ts:          %lu\n", rill_store_ts(store));
+        printf("quant:       %lu\n", rill_store_quant(store));
+        printf("keys data a: %zu\n", rill_store_keys_count(store, rill_col_a));
+        printf("keys data b: %zu\n", rill_store_keys_count(store, rill_col_b));
+        printf("pairs:       %lu\n", rill_store_pairs(store));
+        printf("index a len: %zu\n", rill_store_index_len(store, rill_col_a));
+        printf("index b len: %zu\n", rill_store_index_len(store, rill_col_b));
     }
 
-    if (keys) {
-        size_t key_len = rill_store_keys(store);
-        rill_key_t *keys = calloc(key_len, sizeof(*keys));
-        (void) rill_store_dump_keys(store, keys, key_len);
-
-        printf("keys:\n");
-        for (size_t i = 0; i < key_len; ++i)
-            printf("  %p\n", (void *) keys[i]);
+    if ((key || pairs) && !a && !b) {
+        fprintf(stderr, "you need to specify column a or b\n");
+        return -1;
     }
 
-    if (vals) {
-        size_t val_len = rill_store_vals(store);
-        rill_val_t *vals = calloc(val_len, sizeof(*vals));
-        (void) rill_store_dump_vals(store, vals, val_len);
+    if (key) {
+        const enum rill_col col = a ? rill_col_a : rill_col_b;
+        const size_t keys_len = rill_store_keys_count(store, col);
+        rill_key_t *keys = calloc(keys_len, sizeof(*keys));
 
-        printf("vals:\n");
-        for (size_t i = 0; i < val_len; ++i)
-            printf("  %p\n", (void *) vals[i]);
+        (void) rill_store_keys(store, keys, keys_len, col);
+
+        printf("vals %c:\n", col ? 'b' : 'a');
+
+        for (size_t i = 0; i < keys_len; ++i)
+            printf("  0x%lx\n", keys[i]);
     }
 
     if (pairs) {
-        struct rill_kv kv;
-        struct rill_store_it *it = rill_store_begin(store);
+        struct rill_kv kv = {0};
+        const enum rill_col col = a ? rill_col_a : rill_col_b;
+        struct rill_store_it *it = rill_store_begin(store, col);
 
-        printf("pairs:\n");
+        printf("pairs %c:\n", a ? 'a' : 'b');
         while (rill_store_it_next(it, &kv)) {
             if (rill_kv_nil(&kv)) break;
-            printf("  %p %p\n", (void *) kv.key, (void *) kv.val);
+            printf("  0x%lx 0x%lx\n", kv.key, kv.val);
         }
 
         rill_store_it_free(it);
+    }
+
+    if (space) {
+        struct rill_space* space = rill_store_space(store);
+
+        printf(
+            "size stats  : %s\n"
+            "header size : %zu\n"
+            "index a size: %zu\n"
+            "index b size: %zu\n"
+            "data a size : %zu\n"
+            "data b size : %zu\n",
+            rill_store_file(store),
+            rill_store_space_header(space),
+            rill_store_space_index(space, rill_col_a),
+            rill_store_space_index(space, rill_col_b),
+            rill_store_space_pairs(space, rill_col_a),
+            rill_store_space_pairs(space, rill_col_b));
+
+        free(space);
     }
 
     rill_store_close(store);

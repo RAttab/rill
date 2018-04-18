@@ -143,7 +143,10 @@ static void coder_close(struct encoder *coder)
 }
 
 static struct encoder make_encoder(
-        uint8_t *start, uint8_t *end, struct vals *vals, struct indexer *indexer)
+        uint8_t *start,
+        uint8_t *end,
+        struct vals *vals,
+        struct indexer *indexer)
 {
     struct encoder coder = {
         .it = start, .start = start, .end = end,
@@ -166,8 +169,10 @@ struct decoder
     size_t keys;
     rill_key_t key;
 
-    struct vals *vals;
+    struct index *lookup;
     struct index *index;
+
+    struct vals *vals;
 };
 
 static inline bool coder_read_val(struct decoder *coder, rill_val_t *val)
@@ -178,7 +183,7 @@ static inline bool coder_read_val(struct decoder *coder, rill_val_t *val)
         return false;
     }
 
-    if (*val) *val = vals_itov(coder->vals, *val);
+    if (*val) *val = coder->lookup->data[*val - 1].key;
     return true;
 }
 
@@ -199,24 +204,16 @@ static bool coder_decode(struct decoder *coder, struct rill_kv *kv)
     return coder_read_val(coder, &kv->val);
 }
 
-static struct decoder make_decoder(
-        uint8_t *it, uint8_t *end, struct vals *vals, struct index *index)
-{
-    return (struct decoder) {
-        .it = it, .end = end,
-        .vals = vals,
-        .index = index,
-    };
-}
-
 static struct decoder make_decoder_at(
         uint8_t *it, uint8_t *end,
-        struct vals *vals, struct index *index, size_t key_idx)
+        struct index *lookup,
+        struct index *index,
+        size_t key_idx)
 {
     return (struct decoder) {
         .it = it, .end = end,
         .keys = key_idx,
-        .vals = vals,
+        .lookup = lookup,
         .index = index,
     };
 }

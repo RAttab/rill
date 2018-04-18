@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
         if (!store) rill_exit(1);
 
         if (key) pairs = rill_store_query_key(store, key, pairs);
-        else pairs = rill_store_scan_vals(store, &val, 1, pairs);
+        else pairs = rill_store_query_value(store, val, pairs);
 
         rill_store_close(store);
     }
@@ -100,10 +100,8 @@ int main(int argc, char *argv[])
 
     if (!pairs) rill_exit(1);
 
-    for (size_t i = 0; i < pairs->len; ++i) {
-        if (key) printf("%p\n", (void *) pairs->data[i].val);
-        else printf("%p\n", (void *) pairs->data[i].key);
-    }
+    for (size_t i = 0; i < pairs->len; ++i)
+        printf("0x%lx 0x%lx\n", pairs->data[i].key, pairs->data[i].val);
 
     rill_pairs_free(pairs);
     return 0;

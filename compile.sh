@@ -8,6 +8,10 @@ declare -a SRC
 SRC=(htable rng utils pairs store acc rotate query)
 CC=${OTHERC:-gcc}
 
+LEAKCHECK_ENABLED=${LEAKCHECK_ENABLED:-}
+LEAKCHECK=${OTHERMEMCHECK:-valgrind}
+LEAKCHECK_ARGS="--leak-check=full --track-origins=yes --trace-children=yes --error-exitcode=1"
+
 CFLAGS="-g -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
 CFLAGS="$CFLAGS -I${PREFIX}/src"
 
@@ -35,11 +39,24 @@ $CC -o rill_load "${PREFIX}/src/rill_load.c" librill.a $CFLAGS
 $CC -o rill_dump "${PREFIX}/src/rill_dump.c" librill.a $CFLAGS
 $CC -o rill_query "${PREFIX}/src/rill_query.c" librill.a $CFLAGS
 $CC -o rill_rotate "${PREFIX}/src/rill_rotate.c" librill.a $CFLAGS
-$CC -o rill_invert "${PREFIX}/src/rill_invert.c" librill.a $CFLAGS
 $CC -o rill_ingest "${PREFIX}/src/rill_ingest.c" librill.a $CFLAGS
 $CC -o rill_merge "${PREFIX}/src/rill_merge.c" librill.a $CFLAGS
 
+$CC -o rill_generate "${PREFIX}/test/rill_generate.c" librill.a $CFLAGS
 $CC -o test_indexer "${PREFIX}/test/indexer_test.c" librill.a $CFLAGS && ./test_indexer
 $CC -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
 $CC -o test_store "${PREFIX}/test/store_test.c" librill.a $CFLAGS && ./test_store
 $CC -o test_rotate "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS
+$CC -o test_query "${PREFIX}/test/query_test.c" librill.a $CFLAGS && ./test_query
+
+if [ -n "$LEAKCHECK_ENABLED" ]
+then
+    echo test_indexer =======================================
+    $LEAKCHECK $LEAKCHECK_ARGS ./test_indexer
+    echo test_coder =========================================
+    $LEAKCHECK $LEAKCHECK_ARGS ./test_coder
+    echo test_store =========================================
+    $LEAKCHECK $LEAKCHECK_ARGS ./test_store
+    echo test_query =========================================
+    $LEAKCHECK $LEAKCHECK_ARGS ./test_query
+fi
