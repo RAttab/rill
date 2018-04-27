@@ -21,60 +21,15 @@ struct rill_packed index
     struct index_kv data[];
 };
 
-// -----------------------------------------------------------------------------
-// indexer
-// -----------------------------------------------------------------------------
-
-struct indexer
-{
-    size_t len, cap;
-    struct index_kv kvs[];
-};
-
-static size_t indexer_cap(size_t pairs)
+static size_t index_cap(size_t pairs)
 {
     return sizeof(struct index) + pairs * sizeof(struct index_kv);
 }
 
-
-static struct indexer *indexer_alloc(size_t cap)
+static void index_put(struct index *index, rill_key_t key, uint64_t off)
 {
-    assert(cap);
-
-    struct indexer *indexer = calloc(1, sizeof(*indexer) + cap * sizeof(indexer->kvs[0]));
-    if (!indexer) {
-        rill_fail("unable to allocate indexer: %lu", cap);
-        return NULL;
-    }
-
-    indexer->cap = cap;
-    return indexer;
-}
-
-static void indexer_free(struct indexer *indexer)
-{
-    free(indexer);
-}
-
-static void indexer_put(struct indexer *indexer, rill_key_t key, uint64_t off)
-{
-    indexer->kvs[indexer->len] = (struct index_kv) { .key = key, .off = off };
-    indexer->len++;
-
-    assert(indexer->len <= indexer->cap);
-}
-
-static size_t indexer_write(
-    struct indexer *indexer, struct index *index,
-    size_t cap)
-{
-    index->len = indexer->len;
-    size_t len = indexer->len * sizeof(indexer->kvs[0]);
-
-    assert(len <= cap);
-
-    memcpy(index->data, indexer->kvs, len);
-    return sizeof(*index) + len;
+    index->data[index->len] = (struct index_kv) { .key = key, .off = off };
+    index->len++;
 }
 
 // RIP fancy pants interpolation search :(

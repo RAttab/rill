@@ -9,6 +9,16 @@
 
 
 // -----------------------------------------------------------------------------
+// utils
+// -----------------------------------------------------------------------------
+
+static struct index *index_alloc(size_t pairs)
+{
+    return calloc(1, index_cap(pairs));
+}
+
+
+// -----------------------------------------------------------------------------
 // leb128
 // -----------------------------------------------------------------------------
 
@@ -68,10 +78,10 @@ bool test_leb128(void)
     ({                                                  \
         rill_val_t kvs[] = { __VA_ARGS__ };             \
         size_t len = sizeof(kvs) / sizeof(kvs[0]);      \
-        struct indexer* indexer = indexer_alloc(len);   \
+        struct index *index = index_alloc(len);         \
         for (size_t i = 0; i < len; ++i)                \
-            indexer_put(indexer, kvs[i], 1);            \
-        make_index_impl(indexer, len);                  \
+            index_put(index, kvs[i], 1);                \
+        index;                                          \
     })
 
 static struct vals *make_vals_impl(rill_val_t *list, size_t len)
@@ -83,15 +93,6 @@ static struct vals *make_vals_impl(rill_val_t *list, size_t len)
 
     vals_compact(vals);
     return vals;
-}
-
-static struct index* make_index_impl(struct indexer* indexer, size_t len)
-{
-    const size_t cap = indexer_cap(len);
-    struct index* index = calloc(1, cap);
-    indexer_write(indexer, index, cap);
-    indexer_free(indexer);
-    return index;
 }
 
 static void check_vals(struct rill_pairs *pairs, struct vals *exp)
@@ -168,56 +169,46 @@ void check_coder(struct rill_pairs *pairs)
         rill_pairs_push(inverted, pairs->data[i].val, pairs->data[i].key);
     rill_pairs_compact(inverted);
 
-    size_t cap =
-        (pairs->len + 1) * (sizeof(pairs->data[0]) + 3) +
-        (inverted->len + 1) * (sizeof(inverted->data[0]) + 3);
-
-    uint8_t *buffer = calloc(1, cap);
     struct vals *vals_a = vals_cols_from_pairs(pairs, rill_col_b);
     struct vals *vals_b = vals_cols_from_pairs(inverted, rill_col_b);
 
-    const size_t index_a_cap = sizeof(struct index) + pairs->len * sizeof(struct index_kv);
-    const size_t index_b_cap = sizeof(struct index) + inverted->len * sizeof(struct index_kv);
+    const size_t pairs_a_cap = coder_cap(vals_a->len, pairs->len);
+    const size_t pairs_b_cap = coder_cap(vals_b->len, inverted->len);
 
-    struct index *index_a = calloc(1, index_a_cap);
-    struct index *index_b = calloc(1, index_b_cap);
+    size_t cap = pairs_a_cap + pairs_b_cap;
+    uint8_t *buffer = calloc(1, cap);
+    struct index *index_a = index_alloc(vals_b->len);
+    struct index *index_b = index_alloc(vals_a->len);
 
     size_t len = 0, len_a = 0, len_b = 0;
     {
-        struct indexer *indexer_a = indexer_alloc(pairs->len);
-        struct indexer *indexer_b = indexer_alloc(inverted->len);
-
         struct encoder coder_a =
-            make_encoder(buffer, buffer + cap, vals_a, indexer_a);
+            make_encoder(buffer, buffer + cap, vals_a, index_a);
 
         for (size_t i = 0; i < pairs->len; ++i)
             assert(coder_encode(&coder_a, &pairs->data[i]));
         assert(coder_finish(&coder_a));
 
         len_a = len = coder_a.it - buffer;
-        assert(len <= cap);
+        assert(len <= pairs_a_cap);
 
         struct encoder coder_b =
-            make_encoder(buffer + len_a, buffer + cap, vals_b, indexer_b);
+            make_encoder(buffer + len_a, buffer + cap, vals_b, index_b);
         for (size_t i = 0; i < inverted->len; ++i)
             assert(coder_encode(&coder_b, &inverted->data[i]));
         assert(coder_finish(&coder_b));
 
-        len_b = len = coder_b.it - buffer;
-        assert(len <= cap);
+        len_b = coder_b.it - coder_a.it;
+        assert(len_b <= pairs_b_cap);
 
-        indexer_write(indexer_a, index_a, index_a_cap);
-        indexer_write(indexer_b, index_b, index_b_cap);
-        indexer_free(indexer_a);
-        indexer_free(indexer_b);
-
+        len = coder_b.it - buffer;
         coder_close(&coder_a);
         coder_close(&coder_b);
     }
 
     if (false) { // hex dump for debuging
-        printf("offset b: %zu\n", len_a);
-        printf("buffer: start=%p, len=%lu\n", (void *) buffer, len);
+        rill_pairs_print(pairs);
+        printf("buffer: start=%p, len=%lu(%lu, %lu)\n", (void *) buffer, len, len_a, len_b);
         for (size_t i = 0; i < cap;) {
             printf("%6p: ", (void *) i);
             for (size_t j = 0; j < 16 && i < cap; ++i, ++j) {
@@ -226,12 +217,27 @@ void check_coder(struct rill_pairs *pairs)
             }
             printf("\n");
         }
+
+        printf("index_a: [ ");
+        for (size_t i = 0; i < index_a->len; ++i) {
+            struct index_kv *kv = &index_a->data[i];
+            printf("{%p, %p} ", (void *) kv->key, (void *) kv->off);
+        }
+        printf("]\n");
+
+        printf("index_b: [ ");
+        for (size_t i = 0; i < index_b->len; ++i) {
+            struct index_kv *kv = &index_b->data[i];
+            printf("{%p, %p} ", (void *) kv->key, (void *) kv->off);
+        }
+        printf("]\n");
     }
 
     { /* Coder A */
+        uint8_t *start = buffer;
         struct decoder coder =
-            make_decoder_at(buffer,
-                            buffer + len_a,
+            make_decoder_at(start,
+                            start + len_a,
                             index_b, index_a, 0);
 
         struct rill_kv kv = {0};
@@ -245,9 +251,10 @@ void check_coder(struct rill_pairs *pairs)
     }
 
     { /* Coder B */
+        uint8_t *start = buffer + len_a;
         struct decoder coder =
-            make_decoder_at(buffer + len_a,
-                            buffer + len_b,
+            make_decoder_at(start,
+                            start + len_b,
                             index_a, index_b, 0);
 
         struct rill_kv kv = {0};
@@ -267,8 +274,9 @@ void check_coder(struct rill_pairs *pairs)
 
             assert(index_find(index_a, pairs->data[i].key, &key_idx, &off));
 
+            uint8_t *start = buffer;
             struct decoder coder = make_decoder_at(
-                buffer + off, buffer + len, index_b, index_a, key_idx);
+                start + off, start + len_a, index_b, index_a, key_idx);
 
             struct rill_kv kv = {0};
             do {
@@ -285,8 +293,9 @@ void check_coder(struct rill_pairs *pairs)
 
             assert(index_find(index_b, inverted->data[i].key, &key_idx, &off));
 
+            uint8_t *start = buffer + len_a;
             struct decoder coder = make_decoder_at(
-                buffer + len_a + off, buffer + len_b,
+                start + off, start + len_b,
                 index_a, index_b,
                 key_idx);
 

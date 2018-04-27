@@ -93,7 +93,7 @@ struct rill_space
 
 static struct encoder store_encoder(
         struct rill_store *store,
-        struct indexer *indexer,
+        struct index *index,
         struct vals* vals,
         uint64_t offset)
 {
@@ -101,7 +101,7 @@ static struct encoder store_encoder(
             store->vma + offset,
             store->vma + store->vma_len,
             vals,
-            indexer);
+            index);
 }
 
 static struct decoder store_decoder_at(
@@ -299,8 +299,8 @@ static bool writer_open(
 
     size_t len =
         sizeof(struct header) +
-        indexer_cap(inverted_vals->len) +
-        indexer_cap(vals->len) +
+        index_cap(inverted_vals->len) +
+        index_cap(vals->len) +
         coder_cap(vals->len, pairs) +
         coder_cap(inverted_vals->len, pairs);
 
@@ -336,18 +336,6 @@ static bool writer_open(
     return false;
 }
 
-static void writer_flush_indices(
-    struct rill_store *store,
-    struct indexer *indexer_a,
-    struct indexer *indexer_b)
-{
-    const size_t indexer_a_size = indexer_cap(indexer_a->len);
-    const size_t indexer_b_size = indexer_cap(indexer_b->len);
-
-    indexer_write(indexer_a, store->index_a, indexer_a_size);
-    indexer_write(indexer_b, store->index_b, indexer_b_size);
-}
-
 static void writer_close(
     struct rill_store *store, size_t len)
 {
@@ -379,8 +367,8 @@ static void init_store_offsets(
     struct rill_store* store, size_t vals, size_t inverse_vals)
 {
     store->head->index_a_off = sizeof(struct header);
-    store->head->index_b_off = store->head->index_a_off + indexer_cap(inverse_vals);
-    store->head->data_a_off = store->head->index_b_off + indexer_cap(vals);
+    store->head->index_b_off = store->head->index_a_off + index_cap(inverse_vals);
+    store->head->data_a_off = store->head->index_b_off + index_cap(vals);
 
     store->index_a = (void *) ((uintptr_t) store->vma + store->head->index_a_off);
     store->index_b = (void *) ((uintptr_t) store->vma + store->head->index_b_off);
@@ -415,15 +403,10 @@ bool rill_store_write(
         goto fail_open;
     }
 
-    struct indexer *indexer_a = indexer_alloc(invert_vals->len);
-    if (!indexer_a) goto fail_indexer_a_alloc;
-    struct indexer *indexer_b = indexer_alloc(vals->len);
-    if (!indexer_b) goto fail_indexer_b_alloc;
-
     init_store_offsets(&store, vals->len, invert_vals->len);
 
     struct encoder coder_a =
-        store_encoder(&store, indexer_a, vals, store.head->data_a_off);
+        store_encoder(&store, store.index_a, vals, store.head->data_a_off);
 
     for (size_t i = 0; i < pairs->len; ++i) {
         if (!coder_encode(&coder_a, &pairs->data[i])) goto fail_encode_a;
@@ -433,7 +416,7 @@ bool rill_store_write(
     prepare_col_b_offsets(&store, &coder_a);
 
     struct encoder coder_b =
-        store_encoder(&store, indexer_b, invert_vals, store.head->data_b_off);
+        store_encoder(&store, store.index_b, invert_vals, store.head->data_b_off);
 
     rill_pairs_invert(pairs);
     rill_pairs_compact(pairs); /* recompact mainly for sort */
@@ -443,17 +426,12 @@ bool rill_store_write(
     }
     if (!coder_finish(&coder_b)) goto fail_encode_b;
 
-    writer_flush_indices(&store, indexer_a, indexer_b);
-
     store.head->pairs = coder_a.pairs;
 
     writer_close(&store, store.head->data_b_off + coder_off(&coder_b));
 
     coder_close(&coder_a);
     coder_close(&coder_b);
-
-    indexer_free(indexer_a);
-    indexer_free(indexer_b);
 
     free(vals);
     free(invert_vals);
@@ -464,21 +442,16 @@ bool rill_store_write(
     coder_close(&coder_b);
   fail_encode_a:
     coder_close(&coder_a);
-    indexer_free(indexer_b);
-  fail_indexer_b_alloc:
-    indexer_free(indexer_a);
-  fail_indexer_a_alloc:
     writer_close(&store, 0);
+  fail_open:
     free(invert_vals);
   fail_invert_vals:
-  fail_open:
     free(vals);
   fail_vals:
     return false;
 }
 
-static struct vals *vals_merge_from_index(
-    struct vals *vals, struct index *merge)
+static struct vals *vals_merge_from_index(struct vals *vals, struct index *merge)
 {
     assert(merge);
 
@@ -609,25 +582,17 @@ bool rill_store_merge(
 
     init_store_offsets(&store, vals->len, invert_vals->len);
 
-    struct indexer *indexer_a = indexer_alloc(invert_vals->len);
-    if (!indexer_a) goto fail_index_a;
-
-    struct indexer *indexer_b = indexer_alloc(vals->len);
-    if (!indexer_b) goto fail_index_b;
-
-    struct encoder encoder_a = store_encoder(&store, indexer_a, vals, store.head->data_a_off);
-    if (!merge_with_config(&encoder_a, list, list_len, rill_col_a)) goto fail_merge_with_config_a;
+    struct encoder encoder_a =
+        store_encoder(&store, store.index_a, vals, store.head->data_a_off);
+    if (!merge_with_config(&encoder_a, list, list_len, rill_col_a)) goto fail_coder_a;
     if (!coder_finish(&encoder_a)) goto fail_coder_a;
 
     prepare_col_b_offsets(&store, &encoder_a);
 
     struct encoder encoder_b =
-        store_encoder(&store, indexer_b, invert_vals, store.head->data_b_off);
-
-    if (!merge_with_config(&encoder_b, list, list_len, rill_col_b)) goto fail_merge_with_config_b;
+        store_encoder(&store, store.index_b, invert_vals, store.head->data_b_off);
+    if (!merge_with_config(&encoder_b, list, list_len, rill_col_b)) goto fail_coder_b;
     if (!coder_finish(&encoder_b)) goto fail_coder_b;
-
-    writer_flush_indices(&store, indexer_a, indexer_b);
 
     store.head->pairs = encoder_a.pairs;
 
@@ -638,28 +603,20 @@ bool rill_store_merge(
 
     coder_close(&encoder_a);
     coder_close(&encoder_b);
-    indexer_free(indexer_a);
-    indexer_free(indexer_b);
     free(vals);
     free(invert_vals);
     return true;
 
-  fail_coder_b:
     coder_close(&encoder_b);
-  fail_coder_a:
-  fail_merge_with_config_a:
+  fail_coder_b:
     coder_close(&encoder_a);
+  fail_coder_a:
     writer_close(&store, 0);
-    indexer_free(indexer_a);
-  fail_merge_with_config_b:
-  fail_index_b:
-    free(indexer_a);
-  fail_index_a:
   fail_open:
-  fail_invert_vals:
     free(invert_vals);
-  fail_vals:
+  fail_invert_vals:
     free(vals);
+  fail_vals:
     return false;
 }
 

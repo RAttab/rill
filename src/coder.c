@@ -59,7 +59,7 @@ struct encoder
     rill_key_t key;
 
     vals_rev_t rev;
-    struct indexer *indexer;
+    struct index *index;
 
     size_t pairs;
 };
@@ -119,7 +119,7 @@ static bool coder_encode(struct encoder *coder, const struct rill_kv *kv)
             if (!coder_write_sep(coder)) return false;
         }
 
-        indexer_put(coder->indexer, kv->key, coder_off(coder));
+        index_put(coder->index, kv->key, coder_off(coder));
         coder->key = kv->key;
         coder->keys++;
     }
@@ -146,11 +146,11 @@ static struct encoder make_encoder(
         uint8_t *start,
         uint8_t *end,
         struct vals *vals,
-        struct indexer *indexer)
+        struct index *index)
 {
     struct encoder coder = {
         .it = start, .start = start, .end = end,
-        .indexer = indexer,
+        .index = index,
     };
 
     vals_rev_make(vals, &coder.rev);
