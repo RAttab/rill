@@ -2,49 +2,57 @@
 
 #include "index.c"
 
-enum {
-    CAP = 10
-};
+// -----------------------------------------------------------------------------
+// utils
+// -----------------------------------------------------------------------------
 
-bool test_indexer_build(void)
+static struct index *index_alloc(size_t pairs)
 {
-    struct indexer *indexer = indexer_alloc(CAP);
-    assert(indexer);
-    assert(indexer->len == 0);
-    assert(indexer->cap == CAP);
+    struct index *index = calloc(1, index_cap(pairs));
 
-    rill_key_t data[CAP] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
-    for (size_t i = 0; i < CAP; i++)
-        indexer_put(indexer, data[i], i);
-    assert(indexer->len == indexer->cap);
-
-    const size_t size = indexer_cap(CAP);
-    struct index *index = calloc(1, size);
     assert(index);
+    assert(index->len == 0);
 
-    size_t n_written = indexer_write(indexer, index, size);
-    assert(n_written == size);
+    return index;
+}
 
-    indexer_free(indexer);
 
+// -----------------------------------------------------------------------------
+// test_index_build
+// -----------------------------------------------------------------------------
+
+static bool test_index_build(void)
+{
+    enum { pairs = 10 };
+
+    struct index *index = index_alloc(pairs);
+
+    rill_key_t data[pairs] = {0};
+    for (size_t i = 1; i < pairs; ++i) data[i] = data[i - 1] += 2;
+
+    for (size_t i = 0; i < pairs; i++)
+        index_put(index, data[i], i);
+
+    assert(index->len == pairs);
     for (size_t i = 0; i < index->len; i++)
         assert(index_get(index, i) == data[i]);
+
     assert(index_get(index, index->len) == 0);
 
     free(index);
-    
     return true;
 }
 
-static struct index *make_index(rill_key_t *data, size_t n) 
-{
-    struct indexer *indexer = indexer_alloc(n);
-    for (size_t i = 0; i < n; i++)
-        indexer_put(indexer, data[i], i);
 
-    struct index *index = calloc(1, indexer_cap(n));
-    indexer_write(indexer, index, indexer_cap(n));
-    indexer_free(indexer);
+// -----------------------------------------------------------------------------
+// test_index_lookup
+// -----------------------------------------------------------------------------
+
+static struct index *make_index(rill_key_t *data, size_t n)
+{
+    struct index *index = index_alloc(n);
+    for (size_t i = 0; i < n; i++)
+        index_put(index, data[i], i);
 
     return index;
 }
@@ -74,7 +82,7 @@ static struct index *make_index(rill_key_t *data, size_t n)
         assert(!index_find(index, keys[i], &key_idx, &val));    \
 }
 
-bool test_indexer_lookup(void)
+bool test_index_lookup(void)
 {
     struct index *index;
 
@@ -103,8 +111,8 @@ int main(int argc, char **argv)
     (void) argc, (void) argv;
     bool ret = true;
 
-    ret = ret && test_indexer_build();
-    ret = ret && test_indexer_lookup();
+    ret = ret && test_index_build();
+    ret = ret && test_index_lookup();
 
     return ret ? 0 : 1;
 }
