@@ -31,8 +31,8 @@ struct rill_row row(rill_val_t key, rill_val_t val)
 
 #define make_pair(...)                                          \
     ({                                                          \
-        struct rill_row rows[] = { __VA_ARGS__ };                 \
-        make_pair_impl(rows, sizeof(rows) / sizeof(rows[0]));      \
+        struct rill_row rows[] = { __VA_ARGS__ };               \
+        make_pair_impl(rows, sizeof(rows) / sizeof(rows[0]));   \
     })
 
 struct rill_rows *make_pair_impl(const struct rill_row *row, size_t len)

@@ -75,20 +75,16 @@ struct rill_rows
     struct rill_row *data;
 };
 
-struct rill_rows *rill_rows_new(size_t cap);
-void rill_rows_free(struct rill_rows *rows);
-void rill_rows_clear(struct rill_rows *rows);
+void rill_rows_free(struct rill_rows *);
 
-struct rill_rows *rill_rows_reserve(struct rill_rows *rows, size_t cap);
+bool rill_rows_push(struct rill_rows *, rill_val_t a, rill_val_t b);
+bool rill_rows_reserve(struct rill_rows *, size_t cap);
+void rill_rows_clear(struct rill_rows *);
 
-struct rill_rows *rill_rows_push(
-        struct rill_rows *rows, rill_val_t key, rill_val_t val);
+void rill_rows_invert(struct rill_rows *);
+void rill_rows_compact(struct rill_rows *);
 
-void rill_rows_compact(struct rill_rows *rows);
-
-void rill_rows_print(const struct rill_rows *rows);
-
-void rill_rows_invert(struct rill_rows* rows);
+void rill_rows_print(const struct rill_rows *);
 
 
 // -----------------------------------------------------------------------------

@@ -5,7 +5,7 @@ set -o errexit -o nounset -o pipefail -o xtrace
 : ${PREFIX:="."}
 
 declare -a SRC
-SRC=(htable rng utils pairs store acc rotate query)
+SRC=(htable rng utils rows store acc rotate query)
 CC=${OTHERC:-gcc}
 
 LEAKCHECK_ENABLED=${LEAKCHECK_ENABLED:-}

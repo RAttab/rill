@@ -76,11 +76,11 @@ bool test_leb128(void)
 
 #define make_index(...)                                 \
     ({                                                  \
-        rill_val_t rows[] = { __VA_ARGS__ };             \
-        size_t len = sizeof(rows) / sizeof(rows[0]);      \
+        rill_val_t rows[] = { __VA_ARGS__ };            \
+        size_t len = sizeof(rows) / sizeof(rows[0]);    \
         struct index *index = index_alloc(len);         \
         for (size_t i = 0; i < len; ++i)                \
-            index_put(index, rows[i], 1);                \
+            index_put(index, rows[i], 1);               \
         index;                                          \
     })
 
