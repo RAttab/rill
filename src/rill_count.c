@@ -18,19 +18,19 @@ void usage()
 
 void count(struct rill_store *store, enum rill_col col)
 {
-    struct rill_kv kv;
+    struct rill_row row;
     struct rill_store_it *it = rill_store_begin(store, col);
 
-    rill_key_t key = 0;
+    rill_val_t key = 0;
     size_t count = 0;
-    while (rill_store_it_next(it, &kv)) {
-        if (rill_kv_nil(&kv)) break;
+    while (rill_store_it_next(it, &row)) {
+        if (rill_row_nil(&row)) break;
 
-        if (kv.key == key) count++;
+        if (row.key == key) count++;
         else {
             if (key) printf("%lu %p\n", count, (void *) key);
             count = 1;
-            key = kv.key;
+            key = row.key;
         }
     }
 

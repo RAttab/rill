@@ -56,21 +56,21 @@ struct encoder
     uint8_t *it, *start, *end;
 
     size_t keys;
-    rill_key_t key;
+    rill_val_t key;
 
     vals_rev_t rev;
     struct index *index;
 
-    size_t pairs;
+    size_t rows;
 };
 
-static size_t coder_cap(size_t vals, size_t pairs)
+static size_t coder_cap(size_t vals, size_t rows)
 {
     size_t bytes = 1;
     while (vals >= 1UL << (bytes * 7)) bytes++;
 
     return (bytes + 1) // + 1 -> end-of-values terminator
-        * (pairs + 1); // + 1 -> end-of-pairs terminator
+        * (rows + 1); // + 1 -> end-of-rows terminator
 }
 
 static uint64_t coder_off(struct encoder *coder)
@@ -112,21 +112,21 @@ static inline bool coder_write_val(struct encoder *coder, rill_val_t val)
     return true;
 }
 
-static bool coder_encode(struct encoder *coder, const struct rill_kv *kv)
+static bool coder_encode(struct encoder *coder, const struct rill_row *row)
 {
-    if (coder->key != kv->key) {
+    if (coder->key != row->key) {
         if (rill_likely(coder->key)) {
             if (!coder_write_sep(coder)) return false;
         }
 
-        index_put(coder->index, kv->key, coder_off(coder));
-        coder->key = kv->key;
+        index_put(coder->index, row->key, coder_off(coder));
+        coder->key = row->key;
         coder->keys++;
     }
 
-    if (!coder_write_val(coder, kv->val)) return false;
+    if (!coder_write_val(coder, row->val)) return false;
 
-    coder->pairs++;
+    coder->rows++;
     return true;
 }
 
@@ -167,7 +167,7 @@ struct decoder
     uint8_t *it, *end;
 
     size_t keys;
-    rill_key_t key;
+    rill_val_t key;
 
     struct index *lookup;
     struct index *index;
@@ -187,21 +187,21 @@ static inline bool coder_read_val(struct decoder *coder, rill_val_t *val)
     return true;
 }
 
-static bool coder_decode(struct decoder *coder, struct rill_kv *kv)
+static bool coder_decode(struct decoder *coder, struct rill_row *row)
 {
     if (rill_likely(coder->key)) {
-        kv->key = coder->key;
-        if (!coder_read_val(coder, &kv->val)) return false;
-        if (kv->val) return true;
+        row->key = coder->key;
+        if (!coder_read_val(coder, &row->val)) return false;
+        if (row->val) return true;
     }
 
     coder->key = index_get(coder->index, coder->keys);
     coder->keys++;
 
-    kv->key = coder->key;
-    if (!kv->key) return true; // eof
+    row->key = coder->key;
+    if (!row->key) return true; // eof
 
-    return coder_read_val(coder, &kv->val);
+    return coder_read_val(coder, &row->val);
 }
 
 static struct decoder make_decoder_at(

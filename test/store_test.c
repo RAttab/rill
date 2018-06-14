@@ -10,10 +10,10 @@
 // utils
 // -----------------------------------------------------------------------------
 
-static struct rill_store *make_store(const char *name, struct rill_pairs *pairs)
+static struct rill_store *make_store(const char *name, struct rill_rows *rows)
 {
     unlink(name);
-    assert(rill_store_write(name, 0, 0, pairs));
+    assert(rill_store_write(name, 0, 0, rows));
 
     struct rill_store *store = rill_store_open(name);
     assert(store);
@@ -58,48 +58,48 @@ static struct list *make_rng_list(struct rng *rng, uint64_t max)
 // query_key
 // -----------------------------------------------------------------------------
 
-static struct rill_pairs* duplicate_pairs(struct rill_pairs* pairs)
+static struct rill_rows* duplicate_rows(struct rill_rows* rows)
 {
-    struct rill_pairs* copy = rill_pairs_new(pairs->len);
-    for (size_t i = 0; i < pairs->len; ++i)
-        rill_pairs_push(copy, pairs->data[i].key, pairs->data[i].val);
+    struct rill_rows* copy = rill_rows_new(rows->len);
+    for (size_t i = 0; i < rows->len; ++i)
+        rill_rows_push(copy, rows->data[i].key, rows->data[i].val);
     return copy;
 }
 
-static void check_query_key(struct rill_pairs *pairs)
+static void check_query_key(struct rill_rows *rows)
 {
-    struct rill_pairs *expected = duplicate_pairs(pairs);
-    struct rill_store *store = make_store("test.store.query_key", pairs);
-    struct rill_pairs *result = rill_pairs_new(128);
+    struct rill_rows *expected = duplicate_rows(rows);
+    struct rill_store *store = make_store("test.store.query_key", rows);
+    struct rill_rows *result = rill_rows_new(128);
 
-    rill_pairs_compact(pairs);
-    rill_pairs_compact(expected);
+    rill_rows_compact(rows);
+    rill_rows_compact(expected);
 
     for (size_t i = 0; i < expected->len;) {
-        rill_pairs_clear(result);
+        rill_rows_clear(result);
         result = rill_store_query_key(store, expected->data[i].key, result);
 
         assert(expected->len - i >= result->len);
         for (size_t j = 0; j < result->len; ++j, ++i)
-            assert(!rill_kv_cmp(&expected->data[i], &result->data[j]));
+            assert(!rill_row_cmp(&expected->data[i], &result->data[j]));
     }
 
     free(result);
     rill_store_close(store);
-    rill_pairs_free(pairs);
-    rill_pairs_free(expected);
+    rill_rows_free(rows);
+    rill_rows_free(expected);
 }
 
 bool test_query_key(void)
 {
-    check_query_key(make_pair(kv(1, 10)));
-    check_query_key(make_pair(kv(1, 10), kv(2, 20)));
-    check_query_key(make_pair(kv(1, 10), kv(1, 20), kv(2, 20)));
-    check_query_key(make_pair(kv(1, 10), kv(1, 20), kv(1, 20), kv(1, 30)));
+    check_query_key(make_pair(row(1, 10)));
+    check_query_key(make_pair(row(1, 10), row(2, 20)));
+    check_query_key(make_pair(row(1, 10), row(1, 20), row(2, 20)));
+    check_query_key(make_pair(row(1, 10), row(1, 20), row(1, 20), row(1, 30)));
 
     struct rng rng = rng_make(0);
     for (size_t iterations = 0; iterations < 10; ++iterations)
-        check_query_key(make_rng_pairs(&rng));
+        check_query_key(make_rng_rows(&rng));
 
     return true;
 }
@@ -110,25 +110,25 @@ bool test_query_key(void)
 // -----------------------------------------------------------------------------
 
 static void check_scan_keys(
-        struct rill_store *store, struct rill_pairs *pairs, struct list *keys)
+        struct rill_store *store, struct rill_rows *rows, struct list *keys)
 {
-    struct rill_pairs *result = rill_pairs_new(128);
-    rill_pairs_compact(pairs);
+    struct rill_rows *result = rill_rows_new(128);
+    rill_rows_compact(rows);
 
     for (size_t i = 0; i < keys->len; ++i)
         result = rill_store_query_key(store, keys->data[i], result);
 
-    struct rill_pairs *exp = rill_pairs_new(128);
-    for (size_t i = 0; i < pairs->len; ++i) {
+    struct rill_rows *exp = rill_rows_new(128);
+    for (size_t i = 0; i < rows->len; ++i) {
         for (size_t j = 0; j < keys->len; ++j) {
-            struct rill_kv *kv = &pairs->data[i];
-            if (kv->key == keys->data[j]) exp = rill_pairs_push(exp, kv->key, kv->val);
+            struct rill_row *row = &rows->data[i];
+            if (row->key == keys->data[j]) exp = rill_rows_push(exp, row->key, row->val);
         }
     }
 
     assert(exp->len == result->len);
     for (size_t i = 0; i < exp->len; ++i)
-        assert(!rill_kv_cmp(&exp->data[i], &result->data[i]));
+        assert(!rill_row_cmp(&exp->data[i], &result->data[i]));
 
     free(exp);
     free(result);
@@ -140,9 +140,9 @@ bool test_scan_keys(void)
     static const char *name = "test.store.scan_keys";
 
     {
-        struct rill_pairs *pairs = make_pair(kv(2, 10));
-        struct rill_pairs *copy = duplicate_pairs(pairs);
-        struct rill_store *store = make_store(name, pairs);
+        struct rill_rows *rows = make_pair(row(2, 10));
+        struct rill_rows *copy = duplicate_rows(rows);
+        struct rill_store *store = make_store(name, rows);
 
         check_scan_keys(store, copy, make_list(1));
         check_scan_keys(store, copy, make_list(2));
@@ -153,14 +153,14 @@ bool test_scan_keys(void)
 
         rill_store_close(store);
         free(copy);
-        free(pairs);
+        free(rows);
     }
 
 
     {
-        struct rill_pairs *pairs = make_pair(kv(2, 10), kv(3, 10), kv(3, 20), kv(4, 30));
-        struct rill_pairs *copy = duplicate_pairs(pairs);
-        struct rill_store *store = make_store(name, pairs);
+        struct rill_rows *rows = make_pair(row(2, 10), row(3, 10), row(3, 20), row(4, 30));
+        struct rill_rows *copy = duplicate_rows(rows);
+        struct rill_store *store = make_store(name, rows);
 
         check_scan_keys(store, copy, make_list(1));
         check_scan_keys(store, copy, make_list(3));
@@ -172,20 +172,20 @@ bool test_scan_keys(void)
 
         rill_store_close(store);
         free(copy);
-        free(pairs);
+        free(rows);
     }
 
     {
         struct rng rng = rng_make(0);
-        struct rill_pairs *pairs = make_rng_pairs(&rng);
-        struct rill_pairs *copy = duplicate_pairs(pairs);
-        struct rill_store *store = make_store(name, pairs);
+        struct rill_rows *rows = make_rng_rows(&rng);
+        struct rill_rows *copy = duplicate_rows(rows);
+        struct rill_store *store = make_store(name, rows);
 
         for (size_t iterations = 0; iterations < 10; ++iterations)
             check_scan_keys(store, copy, make_rng_list(&rng, rng_range_key));
 
         rill_store_close(store);
-        free(pairs);
+        free(rows);
         free(copy);
     }
 
@@ -198,28 +198,28 @@ bool test_scan_keys(void)
 // -----------------------------------------------------------------------------
 
 static void check_scan_vals(
-        struct rill_store *store, struct rill_pairs *pairs, struct list *vals)
+        struct rill_store *store, struct rill_rows *rows, struct list *vals)
 {
-    struct rill_pairs *result = rill_pairs_new(128);
-    rill_pairs_compact(pairs);
+    struct rill_rows *result = rill_rows_new(128);
+    rill_rows_compact(rows);
 
     for (size_t i = 0; i < vals->len; ++i)
         result = rill_store_query_value(store, vals->data[i], result);
 
-    struct rill_pairs *exp = rill_pairs_new(128);
-    for (size_t i = 0; i < pairs->len; ++i) {
+    struct rill_rows *exp = rill_rows_new(128);
+    for (size_t i = 0; i < rows->len; ++i) {
         for (size_t j = 0; j < vals->len; ++j) {
-            struct rill_kv *kv = &pairs->data[i];
-            if (kv->val == vals->data[j])
-                exp = rill_pairs_push(exp, kv->val, kv->key);
+            struct rill_row *row = &rows->data[i];
+            if (row->val == vals->data[j])
+                exp = rill_rows_push(exp, row->val, row->key);
         }
     }
 
-    rill_pairs_compact(exp);
+    rill_rows_compact(exp);
 
     assert(exp->len == result->len);
     for (size_t i = 0; i < exp->len; ++i)
-        assert(!rill_kv_cmp(&exp->data[i], &result->data[i]));
+        assert(!rill_row_cmp(&exp->data[i], &result->data[i]));
 
     free(exp);
     free(result);
@@ -231,9 +231,9 @@ bool test_scan_vals(void)
     static const char *name = "test.store.scan_vals";
 
     {
-        struct rill_pairs *pairs = make_pair(kv(2, 20));
-        struct rill_pairs *copy = duplicate_pairs(pairs);
-        struct rill_store *store = make_store(name, pairs);
+        struct rill_rows *rows = make_pair(row(2, 20));
+        struct rill_rows *copy = duplicate_rows(rows);
+        struct rill_store *store = make_store(name, rows);
 
         check_scan_vals(store, copy, make_list(10));
         check_scan_vals(store, copy, make_list(20));
@@ -243,14 +243,14 @@ bool test_scan_vals(void)
         check_scan_vals(store, copy, make_list(10, 30));
 
         rill_store_close(store);
-        free(pairs);
+        free(rows);
         free(copy);
     }
 
     {
-        struct rill_pairs *pairs = make_pair(kv(2, 20), kv(3, 20), kv(3, 30), kv(4, 40));
-        struct rill_pairs *copy = duplicate_pairs(pairs);
-        struct rill_store *store = make_store(name, pairs);
+        struct rill_rows *rows = make_pair(row(2, 20), row(3, 20), row(3, 30), row(4, 40));
+        struct rill_rows *copy = duplicate_rows(rows);
+        struct rill_store *store = make_store(name, rows);
 
         check_scan_vals(store, copy, make_list(10));
         check_scan_vals(store, copy, make_list(20));
@@ -262,21 +262,21 @@ bool test_scan_vals(void)
         check_scan_vals(store, copy, make_list(20, 30, 40));
 
         rill_store_close(store);
-        free(pairs);
+        free(rows);
         free(copy);
     }
 
     {
         struct rng rng = rng_make(0);
-        struct rill_pairs *pairs = make_rng_pairs(&rng);
-        struct rill_pairs *copy = duplicate_pairs(pairs);
-        struct rill_store *store = make_store(name, pairs);
+        struct rill_rows *rows = make_rng_rows(&rng);
+        struct rill_rows *copy = duplicate_rows(rows);
+        struct rill_store *store = make_store(name, rows);
 
         for (size_t iterations = 0; iterations < 10; ++iterations)
             check_scan_vals(store, copy, make_rng_list(&rng, rng_range_val));
 
         rill_store_close(store);
-        free(pairs);
+        free(rows);
         free(copy);
     }
 

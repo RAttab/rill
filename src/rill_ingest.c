@@ -52,24 +52,24 @@ struct rill_store *load_file(const char *file, rill_ts_t ts, rill_ts_t quant)
         rill_exit(1);
     }
 
-    struct rill_kv *it = data;
-    struct rill_kv *end = it + (st.st_size / sizeof(*it));
+    struct rill_row *it = data;
+    struct rill_row *end = it + (st.st_size / sizeof(*it));
     for (; it < end; ++it) {
-        rill_key_t key = endian_btol(it->val);
+        rill_val_t key = endian_btol(it->val);
         rill_val_t val = endian_btol(it->key);
-        *it = (struct rill_kv) { .key = key, .val = val };
+        *it = (struct rill_row) { .key = key, .val = val };
     }
 
-    struct rill_pairs *pairs = ((struct rill_pairs *)data) - 1;
-    if (!pairs) rill_exit(1);
+    struct rill_rows *rows = ((struct rill_rows *)data) - 1;
+    if (!rows) rill_exit(1);
 
-    pairs->cap = pairs->len = st.st_size / sizeof(pairs->data[0]);
-    rill_pairs_compact(pairs);
+    rows->cap = rows->len = st.st_size / sizeof(rows->data[0]);
+    rill_rows_compact(rows);
 
     char file_rill[PATH_MAX];
     snprintf(file_rill, sizeof(file_rill), "%s.rill", file);
 
-    if (!rill_store_write(file_rill, ts, quant, pairs)) rill_exit(1);
+    if (!rill_store_write(file_rill, ts, quant, rows)) rill_exit(1);
     munmap(ptr, page_len);
     munmap(data, len);
 

@@ -62,29 +62,29 @@ void rill_query_close(struct rill_query *query)
     free(query);
 }
 
-struct rill_pairs *rill_query_key(
-        const struct rill_query *query, rill_key_t key, struct rill_pairs *out)
+struct rill_rows *rill_query_key(
+        const struct rill_query *query, rill_val_t key, struct rill_rows *out)
 {
     if (!key) return out;
 
-    struct rill_pairs *result = out;
+    struct rill_rows *result = out;
     for (size_t i = 0; i < query->len; ++i) {
         result = rill_store_query_key(query->list[i], key, result);
         if (!result) return NULL;
     }
 
-    rill_pairs_compact(result);
+    rill_rows_compact(result);
     return result;
 }
 
-struct rill_pairs *rill_query_keys(
+struct rill_rows *rill_query_keys(
         const struct rill_query *query,
-        const rill_key_t *keys, size_t len,
-        struct rill_pairs *out)
+        const rill_val_t *keys, size_t len,
+        struct rill_rows *out)
 {
     if (!len) return out;
 
-    struct rill_pairs *result = out;
+    struct rill_rows *result = out;
     for (size_t i = 0; i < query->len; ++i) {
         for (size_t j = 0; i < len; ++j) {
             result = rill_store_query_key(query->list[i], keys[j], result);
@@ -92,7 +92,7 @@ struct rill_pairs *rill_query_keys(
         }
     }
 
-    rill_pairs_compact(result);
+    rill_rows_compact(result);
     return result;
 }
 
@@ -105,10 +105,10 @@ static int compare_rill_values(const void *v1, const void *v2) {
     return 0;
 }
 
-struct rill_pairs *rill_query_vals(
+struct rill_rows *rill_query_vals(
         const struct rill_query *query,
         const rill_val_t *vals, size_t len,
-        struct rill_pairs *out)
+        struct rill_rows *out)
 {
     if (!len) return out;
 
@@ -118,7 +118,7 @@ struct rill_pairs *rill_query_vals(
     memcpy(sorted, vals, sizeof(vals[0]) * len);
     qsort(sorted, len, sizeof(vals[0]), compare_rill_values);
 
-    struct rill_pairs *result = out;
+    struct rill_rows *result = out;
     for (size_t i = 0; i < query->len; ++i) {
         for (size_t j = 0; j < len; ++j) {
             result = rill_store_query_value(query->list[i], sorted[j], result);
@@ -126,7 +126,7 @@ struct rill_pairs *rill_query_vals(
         }
     }
 
-    rill_pairs_compact(result);
+    rill_rows_compact(result);
     free(sorted);
     return result;
 
@@ -137,32 +137,32 @@ struct rill_pairs *rill_query_vals(
     return NULL;
 }
 
-struct rill_pairs *rill_query_all(
+struct rill_rows *rill_query_all(
     const struct rill_query *query, enum rill_col col)
 {
-    struct rill_pairs *result = rill_pairs_new(1);
+    struct rill_rows *result = rill_rows_new(1);
     for (size_t i = 0; i < query->len; ++i) {
-        size_t pairs = rill_store_pairs(query->list[i]);
-        result = rill_pairs_reserve(result, result->len + pairs);
+        size_t rows = rill_store_rows(query->list[i]);
+        result = rill_rows_reserve(result, result->len + rows);
         if (!result) goto fail_scan;
 
         struct rill_store_it *it = rill_store_begin(query->list[i], col);
         if (!it) goto fail_scan;
 
-        struct rill_kv kv;
+        struct rill_row row;
         while (true) {
-            if (!rill_store_it_next(it, &kv)) {
+            if (!rill_store_it_next(it, &row)) {
                 rill_store_it_free(it);
                 goto fail_scan;
             }
-            if (rill_kv_nil(&kv)) break;
+            if (rill_row_nil(&row)) break;
 
-            result = rill_pairs_push(result, kv.key, kv.val);
+            result = rill_rows_push(result, row.key, row.val);
         }
         rill_store_it_free(it);
     }
 
-    rill_pairs_compact(result);
+    rill_rows_compact(result);
     return result;
 
   fail_scan:

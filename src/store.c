@@ -48,7 +48,7 @@ struct rill_packed header
     uint64_t ts;
     uint64_t quant;
 
-    uint64_t pairs;
+    uint64_t rows;
 
     uint64_t data_a_off;
     uint64_t data_b_off;
@@ -83,7 +83,7 @@ struct rill_space
 {
     size_t header_bytes;
     size_t index_bytes[2];
-    size_t pairs_bytes[2];
+    size_t rows_bytes[2];
 };
 
 
@@ -285,7 +285,7 @@ static bool writer_open(
         const char *file,
         struct vals *vals,
         struct vals *inverted_vals,
-        size_t pairs,
+        size_t rows,
         rill_ts_t ts,
         size_t quant)
 {
@@ -301,8 +301,8 @@ static bool writer_open(
         sizeof(struct header) +
         index_cap(inverted_vals->len) +
         index_cap(vals->len) +
-        coder_cap(vals->len, pairs) +
-        coder_cap(inverted_vals->len, pairs);
+        coder_cap(vals->len, rows) +
+        coder_cap(inverted_vals->len, rows);
 
     if (ftruncate(store->fd, len) == -1) {
         rill_fail_errno("unable to resize '%s'", file);
@@ -386,19 +386,19 @@ bool rill_store_write(
         const char *file,
         rill_ts_t ts,
         size_t quant,
-        struct rill_pairs *pairs)
+        struct rill_rows *rows)
 {
-    rill_pairs_compact(pairs);
-    if (!pairs->len) return true;
+    rill_rows_compact(rows);
+    if (!rows->len) return true;
 
-    struct vals *vals = vals_cols_from_pairs(pairs, rill_col_b);
+    struct vals *vals = vals_cols_from_rows(rows, rill_col_b);
     if (!vals) goto fail_vals;
-    struct vals *invert_vals = vals_cols_from_pairs(pairs, rill_col_a);
+    struct vals *invert_vals = vals_cols_from_rows(rows, rill_col_a);
     if (!invert_vals) goto fail_invert_vals;
 
     struct rill_store store = {0};
     if (!writer_open(&store, file, vals, invert_vals,
-                     pairs->len, ts, quant)) {
+                     rows->len, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
@@ -408,8 +408,8 @@ bool rill_store_write(
     struct encoder coder_a =
         store_encoder(&store, store.index_a, vals, store.head->data_a_off);
 
-    for (size_t i = 0; i < pairs->len; ++i) {
-        if (!coder_encode(&coder_a, &pairs->data[i])) goto fail_encode_a;
+    for (size_t i = 0; i < rows->len; ++i) {
+        if (!coder_encode(&coder_a, &rows->data[i])) goto fail_encode_a;
     }
     if (!coder_finish(&coder_a)) goto fail_encode_a;
 
@@ -418,15 +418,15 @@ bool rill_store_write(
     struct encoder coder_b =
         store_encoder(&store, store.index_b, invert_vals, store.head->data_b_off);
 
-    rill_pairs_invert(pairs);
-    rill_pairs_compact(pairs); /* recompact mainly for sort */
+    rill_rows_invert(rows);
+    rill_rows_compact(rows); /* recompact mainly for sort */
 
-    for (size_t i = 0; i < pairs->len; ++i) {
-        if (!coder_encode(&coder_b, &pairs->data[i])) goto fail_encode_b;
+    for (size_t i = 0; i < rows->len; ++i) {
+        if (!coder_encode(&coder_b, &rows->data[i])) goto fail_encode_b;
     }
     if (!coder_finish(&coder_b)) goto fail_encode_b;
 
-    store.head->pairs = coder_a.pairs;
+    store.head->rows = coder_a.rows;
 
     writer_close(&store, store.head->data_b_off + coder_off(&coder_b));
 
@@ -497,7 +497,7 @@ static bool merge_with_config(
     size_t list_len,
     enum rill_col col)
 {
-    struct rill_kv kvs[list_len];
+    struct rill_row rows[list_len];
 
     struct decoder decoders[list_len];
 
@@ -510,32 +510,32 @@ static bool merge_with_config(
     assert(it_len);
 
     for (size_t i = 0; i < it_len; ++i) {
-        if (!(coder_decode(&decoders[i], &kvs[i]))) goto fail_decoder;
+        if (!(coder_decode(&decoders[i], &rows[i]))) goto fail_decoder;
     }
 
-    struct rill_kv prev = {0};
+    struct rill_row prev = {0};
 
     while (it_len > 0) {
         size_t target = 0;
 
         for (size_t i = 1; i < it_len; ++i) {
-            if (rill_kv_cmp(&kvs[i], &kvs[target]) < 0)
+            if (rill_row_cmp(&rows[i], &rows[target]) < 0)
                 target = i;
         }
 
-        struct rill_kv *kv = &kvs[target];
+        struct rill_row *row = &rows[target];
         struct decoder *decoder = &decoders[target];
 
-        if (rill_likely(rill_kv_nil(&prev) || rill_kv_cmp(&prev, kv) < 0)) {
-            if (!coder_encode(coder, kv)) goto fail_decoder;
-            prev = *kv;
+        if (rill_likely(rill_row_nil(&prev) || rill_row_cmp(&prev, row) < 0)) {
+            if (!coder_encode(coder, row)) goto fail_decoder;
+            prev = *row;
         }
 
-        if (!coder_decode(decoder, kv)) goto fail_decoder;
-        if (rill_unlikely(rill_kv_nil(kv))) {
-            memmove(kvs + target,
-                    kvs + target + 1,
-                    (it_len - target - 1) * sizeof(kvs[0]));
+        if (!coder_decode(decoder, row)) goto fail_decoder;
+        if (rill_unlikely(rill_row_nil(row))) {
+            memmove(rows + target,
+                    rows + target + 1,
+                    (it_len - target - 1) * sizeof(rows[0]));
             memmove(decoders + target,
                     decoders + target + 1,
                     (it_len - target - 1) * sizeof(decoders[0]));
@@ -556,7 +556,7 @@ bool rill_store_merge(
 {
     assert(list_len > 1);
 
-    size_t pairs = 0;
+    size_t rows = 0;
     struct vals *vals = NULL;
     struct vals *invert_vals = NULL;
 
@@ -567,7 +567,7 @@ bool rill_store_merge(
         struct vals *ret = vals_merge_from_index(vals, list[i]->index_b);
         struct vals *iret = vals_merge_from_index(invert_vals, list[i]->index_a);
 
-        pairs += list[i]->head->pairs;
+        rows += list[i]->head->rows;
 
         if (ret) vals = ret; else goto fail_vals;
         if (iret) invert_vals = iret; else goto fail_invert_vals;
@@ -575,7 +575,7 @@ bool rill_store_merge(
 
     struct rill_store store = {0};
     if (!writer_open(&store, file, vals, invert_vals,
-                     pairs, ts, quant)) {
+                     rows, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
@@ -594,7 +594,7 @@ bool rill_store_merge(
     if (!merge_with_config(&encoder_b, list, list_len, rill_col_b)) goto fail_coder_b;
     if (!coder_finish(&encoder_b)) goto fail_coder_b;
 
-    store.head->pairs = encoder_a.pairs;
+    store.head->rows = encoder_a.rows;
 
     writer_close(&store, store.head->data_b_off + coder_off(&encoder_b));
 
@@ -653,9 +653,9 @@ size_t rill_store_keys_count(const struct rill_store *store, enum rill_col colum
     return ix->len;
 }
 
-size_t rill_store_pairs(const struct rill_store *store)
+size_t rill_store_rows(const struct rill_store *store)
 {
-    return store->head->pairs;
+    return store->head->rows;
 }
 
 size_t rill_store_index_len(const struct rill_store *store, enum rill_col col)
@@ -664,13 +664,13 @@ size_t rill_store_index_len(const struct rill_store *store, enum rill_col col)
     return col == rill_col_a ? store->index_a->len : store->index_b->len;
 }
 
-static struct rill_pairs *store_query_key_or_value(
+static struct rill_rows *store_query_key_or_value(
         struct rill_store *store,
-        rill_key_t key,
-        struct rill_pairs *out,
+        rill_val_t key,
+        struct rill_rows *out,
         enum rill_col column)
 {
-    struct rill_pairs *result = out;
+    struct rill_rows *result = out;
     size_t key_idx = 0;
     uint64_t off = 0;
     struct index *ix =
@@ -678,15 +678,15 @@ static struct rill_pairs *store_query_key_or_value(
 
     if (!index_find(ix, key, &key_idx, &off)) return result;
 
-    struct rill_kv kv = {0};
+    struct rill_row row = {0};
     struct decoder coder = store_decoder_at(store, key_idx, off, column);
 
     while (true) {
-        if (!coder_decode(&coder, &kv)) goto fail;
-        if (rill_kv_nil(&kv)) break;
-        if (kv.key != key) break;
+        if (!coder_decode(&coder, &row)) goto fail;
+        if (rill_row_nil(&row)) break;
+        if (row.key != key) break;
 
-        result = rill_pairs_push(result, kv.key, kv.val);
+        result = rill_rows_push(result, row.key, row.val);
         if (!result) goto fail;
     }
 
@@ -697,20 +697,20 @@ static struct rill_pairs *store_query_key_or_value(
     return NULL;
 }
 
-struct rill_pairs *rill_store_query_key(
-        struct rill_store *store, rill_val_t key, struct rill_pairs *out)
+struct rill_rows *rill_store_query_key(
+        struct rill_store *store, rill_val_t key, struct rill_rows *out)
 {
     return store_query_key_or_value(store, key, out, rill_col_a);
 }
 
-struct rill_pairs *rill_store_query_value(
-        struct rill_store *store, rill_val_t key, struct rill_pairs *out)
+struct rill_rows *rill_store_query_value(
+        struct rill_store *store, rill_val_t key, struct rill_rows *out)
 {
     return store_query_key_or_value(store, key, out, rill_col_b);
 }
 
 size_t rill_store_keys(
-    const struct rill_store *store, rill_key_t *out, size_t cap,
+    const struct rill_store *store, rill_val_t *out, size_t cap,
     enum rill_col column)
 {
     assert(column == rill_col_a || column == rill_col_b);
@@ -744,9 +744,9 @@ void rill_store_it_free(struct rill_store_it *it)
     free(it);
 }
 
-bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv)
+bool rill_store_it_next(struct rill_store_it *it, struct rill_row *row)
 {
-    return coder_decode(&it->decoder, kv);
+    return coder_decode(&it->decoder, row);
 }
 
 struct rill_space* rill_store_space(struct rill_store* store)
@@ -757,8 +757,8 @@ struct rill_space* rill_store_space(struct rill_store* store)
         .header_bytes = sizeof(*store->head),
         .index_bytes[rill_col_a] = store->head->index_b_off - store->head->index_a_off,
         .index_bytes[rill_col_b] = store->head->data_a_off - store->head->index_b_off,
-        .pairs_bytes[rill_col_a] = store->head->data_b_off - store->head->data_a_off,
-        .pairs_bytes[rill_col_b] = store->vma_len - store->head->data_b_off,
+        .rows_bytes[rill_col_a] = store->head->data_b_off - store->head->data_a_off,
+        .rows_bytes[rill_col_b] = store->vma_len - store->head->data_b_off,
     };
 
     return ret;
@@ -771,7 +771,7 @@ size_t rill_store_space_index(struct rill_space* space, enum rill_col col) {
     assert(col == rill_col_a || col == rill_col_b);
     return space->index_bytes[col];
 }
-size_t rill_store_space_pairs(struct rill_space* space, enum rill_col col) {
+size_t rill_store_space_rows(struct rill_space* space, enum rill_col col) {
     assert(col == rill_col_a || col == rill_col_b);
-    return space->pairs_bytes[col];
+    return space->rows_bytes[col];
 }

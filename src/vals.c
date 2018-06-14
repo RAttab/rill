@@ -60,16 +60,16 @@ static void vals_compact(struct vals *vals)
     vals->len = j + 1;
 }
 
-static struct vals *vals_cols_from_pairs(struct rill_pairs *pairs, enum rill_col col)
+static struct vals *vals_cols_from_rows(struct rill_rows *rows, enum rill_col col)
 {
     struct vals *vals =
-        calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * pairs->len);
+        calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * rows->len);
 
     if (!vals) return NULL;
 
-    vals->len = pairs->len;
-    for (size_t i = 0; i < pairs->len; ++i)
-        vals->data[i] = col == rill_col_a ? pairs->data[i].key : pairs->data[i].val;
+    vals->len = rows->len;
+    for (size_t i = 0; i < rows->len; ++i)
+        vals->data[i] = col == rill_col_a ? rows->data[i].key : rows->data[i].val;
 
     vals_compact(vals);
     return vals;

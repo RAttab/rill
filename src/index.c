@@ -8,9 +8,9 @@
 // config
 // -----------------------------------------------------------------------------
 
-struct rill_packed index_kv
+struct rill_packed index_row
 {
-    rill_key_t key;
+    rill_val_t key;
     uint64_t off;
 };
 
@@ -18,27 +18,27 @@ struct rill_packed index
 {
     uint64_t len;
     uint64_t __unused; // kept for backwards compatibility
-    struct index_kv data[];
+    struct index_row data[];
 };
 
-static size_t index_cap(size_t pairs)
+static size_t index_cap(size_t rows)
 {
-    return sizeof(struct index) + pairs * sizeof(struct index_kv);
+    return sizeof(struct index) + rows * sizeof(struct index_row);
 }
 
-static void index_put(struct index *index, rill_key_t key, uint64_t off)
+static void index_put(struct index *index, rill_val_t key, uint64_t off)
 {
-    index->data[index->len] = (struct index_kv) { .key = key, .off = off };
+    index->data[index->len] = (struct index_row) { .key = key, .off = off };
     index->len++;
 }
 
 // RIP fancy pants interpolation search :(
 static bool index_find(
-        struct index *index, rill_key_t key, size_t *key_idx, uint64_t *off)
+        struct index *index, rill_val_t key, size_t *key_idx, uint64_t *off)
 {
     size_t idx = 0;
     size_t len = index->len;
-    struct index_kv *low = index->data;
+    struct index_row *low = index->data;
 
     while (len > 1) {
         size_t mid = len / 2;
@@ -46,14 +46,14 @@ static bool index_find(
         else { low += mid; len -= mid; idx += mid;}
     }
 
-    struct index_kv *kv = &index->data[idx];
-    if (kv->key != key) return false;
+    struct index_row *row = &index->data[idx];
+    if (row->key != key) return false;
     *key_idx = idx;
-    *off = kv->off;
+    *off = row->off;
     return true;
 }
 
-static rill_key_t index_get(struct index *index, size_t i)
+static rill_val_t index_get(struct index *index, size_t i)
 {
     return i < index->len ? index->data[i].key : 0;
 }

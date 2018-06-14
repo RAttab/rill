@@ -20,7 +20,7 @@ int main(int argc, char **argv)
 {
     bool header = false;
     bool key = false;
-    bool pairs = false;
+    bool rows = false;
     bool a = false;
     bool b = false;
     bool space = false;
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
         switch (opt) {
         case 'h': header = true; break;
         case 'k': key = true; break;
-        case 'p': pairs = true; break;
+        case 'p': rows = true; break;
         case 'a': a = true; break;
         case 'b': b = true; break;
         case 'm': space = true; break;
@@ -40,7 +40,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!header && !a && !b && !a && !pairs && !key && !space) usage();
+    if (!header && !a && !b && !a && !rows && !key && !space) usage();
     if (optind >= argc) usage();
 
     struct rill_store *store = rill_store_open(argv[optind]);
@@ -53,12 +53,12 @@ int main(int argc, char **argv)
         printf("quant:       %lu\n", rill_store_quant(store));
         printf("keys data a: %zu\n", rill_store_keys_count(store, rill_col_a));
         printf("keys data b: %zu\n", rill_store_keys_count(store, rill_col_b));
-        printf("pairs:       %lu\n", rill_store_pairs(store));
+        printf("rows:       %lu\n", rill_store_rows(store));
         printf("index a len: %zu\n", rill_store_index_len(store, rill_col_a));
         printf("index b len: %zu\n", rill_store_index_len(store, rill_col_b));
     }
 
-    if ((key || pairs) && !a && !b) {
+    if ((key || rows) && !a && !b) {
         fprintf(stderr, "you need to specify column a or b\n");
         return -1;
     }
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
     if (key) {
         const enum rill_col col = a ? rill_col_a : rill_col_b;
         const size_t keys_len = rill_store_keys_count(store, col);
-        rill_key_t *keys = calloc(keys_len, sizeof(*keys));
+        rill_val_t *keys = calloc(keys_len, sizeof(*keys));
 
         (void) rill_store_keys(store, keys, keys_len, col);
 
@@ -76,15 +76,15 @@ int main(int argc, char **argv)
             printf("  0x%lx\n", keys[i]);
     }
 
-    if (pairs) {
-        struct rill_kv kv = {0};
+    if (rows) {
+        struct rill_row row = {0};
         const enum rill_col col = a ? rill_col_a : rill_col_b;
         struct rill_store_it *it = rill_store_begin(store, col);
 
-        printf("pairs %c:\n", a ? 'a' : 'b');
-        while (rill_store_it_next(it, &kv)) {
-            if (rill_kv_nil(&kv)) break;
-            printf("  0x%lx 0x%lx\n", kv.key, kv.val);
+        printf("rows %c:\n", a ? 'a' : 'b');
+        while (rill_store_it_next(it, &row)) {
+            if (rill_row_nil(&row)) break;
+            printf("  0x%lx 0x%lx\n", row.key, row.val);
         }
 
         rill_store_it_free(it);
@@ -104,8 +104,8 @@ int main(int argc, char **argv)
             rill_store_space_header(space),
             rill_store_space_index(space, rill_col_a),
             rill_store_space_index(space, rill_col_b),
-            rill_store_space_pairs(space, rill_col_a),
-            rill_store_space_pairs(space, rill_col_b));
+            rill_store_space_rows(space, rill_col_a),
+            rill_store_space_rows(space, rill_col_b));
 
         free(space);
     }

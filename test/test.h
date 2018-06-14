@@ -21,45 +21,45 @@
 
 
 // -----------------------------------------------------------------------------
-// pairs
+// rows
 // -----------------------------------------------------------------------------
 
-struct rill_kv kv(rill_key_t key, rill_val_t val)
+struct rill_row row(rill_val_t key, rill_val_t val)
 {
-    return (struct rill_kv) { .key = key, .val = val };
+    return (struct rill_row) { .key = key, .val = val };
 }
 
 #define make_pair(...)                                          \
     ({                                                          \
-        struct rill_kv kvs[] = { __VA_ARGS__ };                 \
-        make_pair_impl(kvs, sizeof(kvs) / sizeof(kvs[0]));      \
+        struct rill_row rows[] = { __VA_ARGS__ };                 \
+        make_pair_impl(rows, sizeof(rows) / sizeof(rows[0]));      \
     })
 
-struct rill_pairs *make_pair_impl(const struct rill_kv *kv, size_t len)
+struct rill_rows *make_pair_impl(const struct rill_row *row, size_t len)
 {
-    struct rill_pairs *pairs = rill_pairs_new(len);
+    struct rill_rows *rows = rill_rows_new(len);
     for (size_t i = 0; i < len; ++i)
-        pairs = rill_pairs_push(pairs, kv[i].key, kv[i].val);
-    return pairs;
+        rows = rill_rows_push(rows, row[i].key, row[i].val);
+    return rows;
 }
 
 enum { rng_range_key = 500, rng_range_val = 100 };
 
-struct rill_pairs *make_rng_pairs(struct rng *rng)
+struct rill_rows *make_rng_rows(struct rng *rng)
 {
     enum { len = 1000 };
-    struct rill_pairs *pairs = rill_pairs_new(len);
+    struct rill_rows *rows = rill_rows_new(len);
 
     for (size_t i = 0; i < len; ++i) {
         uint64_t key = rng_gen_range(rng, 1, rng_range_key);
         uint64_t val = rng_gen_range(rng, 1, rng_range_val);
-        pairs = rill_pairs_push(pairs, key, val);
-        assert(pairs);
+        rows = rill_rows_push(rows, key, val);
+        assert(rows);
     }
 
-    rill_pairs_compact(pairs);
+    rill_rows_compact(rows);
 
-    return pairs;
+    return rows;
 }
 
 

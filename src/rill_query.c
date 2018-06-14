@@ -60,7 +60,7 @@ uint64_t read_u64(char *arg)
 
 int main(int argc, char *argv[])
 {
-    rill_key_t key = 0;
+    rill_val_t key = 0;
     rill_val_t val = 0;
 
     int opt = 0;
@@ -77,14 +77,14 @@ int main(int argc, char *argv[])
     if (optind >= argc) { usage(); }
 
     const char *db = argv[optind];
-    struct rill_pairs *pairs = rill_pairs_new(100);
+    struct rill_rows *rows = rill_rows_new(100);
 
     if (is_file(db)) {
         struct rill_store *store = rill_store_open(db);
         if (!store) rill_exit(1);
 
-        if (key) pairs = rill_store_query_key(store, key, pairs);
-        else pairs = rill_store_query_value(store, val, pairs);
+        if (key) rows = rill_store_query_key(store, key, rows);
+        else rows = rill_store_query_value(store, val, rows);
 
         rill_store_close(store);
     }
@@ -92,17 +92,17 @@ int main(int argc, char *argv[])
         struct rill_query *query = rill_query_open(db);
         if (!query) rill_exit(1);
 
-        if (key) pairs = rill_query_key(query, key, pairs);
-        else pairs = rill_query_vals(query, &val, 1, pairs);
+        if (key) rows = rill_query_key(query, key, rows);
+        else rows = rill_query_vals(query, &val, 1, rows);
 
         rill_query_close(query);
     }
 
-    if (!pairs) rill_exit(1);
+    if (!rows) rill_exit(1);
 
-    for (size_t i = 0; i < pairs->len; ++i)
-        printf("0x%lx 0x%lx\n", pairs->data[i].key, pairs->data[i].val);
+    for (size_t i = 0; i < rows->len; ++i)
+        printf("0x%lx 0x%lx\n", rows->data[i].key, rows->data[i].val);
 
-    rill_pairs_free(pairs);
+    rill_rows_free(rows);
     return 0;
 }

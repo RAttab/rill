@@ -36,61 +36,59 @@ size_t rill_strerror(struct rill_error *err, char *dest, size_t len);
 // -----------------------------------------------------------------------------
 
 typedef uint64_t rill_ts_t;
-typedef uint64_t rill_key_t;
 typedef uint64_t rill_val_t;
 
 
 // -----------------------------------------------------------------------------
-// kv
+// row
 // -----------------------------------------------------------------------------
 
-struct rill_kv
+struct rill_row
 {
-    rill_key_t key;
-    rill_val_t val;
+    rill_val_t a, b;
 };
 
-inline bool rill_kv_nil(const struct rill_kv *kv)
+inline bool rill_row_nil(const struct rill_row *row)
 {
-    return !kv->key && !kv->val;
+    return !row->a && !row->b;
 }
 
-inline int rill_kv_cmp(const struct rill_kv *lhs, const struct rill_kv *rhs)
+inline int rill_row_cmp(const struct rill_row *lhs, const struct rill_row *rhs)
 {
-    if (lhs->key < rhs->key) return -1;
-    if (lhs->key > rhs->key) return +1;
+    if (lhs->a < rhs->a) return -1;
+    if (lhs->a > rhs->a) return +1;
 
-    if (lhs->val < rhs->val) return -1;
-    if (lhs->val > rhs->val) return +1;
+    if (lhs->b < rhs->b) return -1;
+    if (lhs->b > rhs->b) return +1;
 
     return 0;
 }
 
 
 // -----------------------------------------------------------------------------
-// pairs
+// rows
 // -----------------------------------------------------------------------------
 
-struct rill_pairs
+struct rill_rows
 {
     size_t len, cap;
-    struct rill_kv data[];
+    struct rill_row *data;
 };
 
-struct rill_pairs *rill_pairs_new(size_t cap);
-void rill_pairs_free(struct rill_pairs *pairs);
-void rill_pairs_clear(struct rill_pairs *pairs);
+struct rill_rows *rill_rows_new(size_t cap);
+void rill_rows_free(struct rill_rows *rows);
+void rill_rows_clear(struct rill_rows *rows);
 
-struct rill_pairs *rill_pairs_reserve(struct rill_pairs *pairs, size_t cap);
+struct rill_rows *rill_rows_reserve(struct rill_rows *rows, size_t cap);
 
-struct rill_pairs *rill_pairs_push(
-        struct rill_pairs *pairs, rill_key_t key, rill_val_t val);
+struct rill_rows *rill_rows_push(
+        struct rill_rows *rows, rill_val_t key, rill_val_t val);
 
-void rill_pairs_compact(struct rill_pairs *pairs);
+void rill_rows_compact(struct rill_rows *rows);
 
-void rill_pairs_print(const struct rill_pairs *pairs);
+void rill_rows_print(const struct rill_rows *rows);
 
-void rill_pairs_invert(struct rill_pairs* pairs);
+void rill_rows_invert(struct rill_rows* rows);
 
 
 // -----------------------------------------------------------------------------
@@ -110,7 +108,7 @@ bool rill_store_write(
         const char *file,
         rill_ts_t ts,
         size_t quant,
-        struct rill_pairs *pairs);
+        struct rill_rows *rows);
 
 bool rill_store_merge(
         const char *file,
@@ -124,21 +122,21 @@ unsigned rill_store_version(const struct rill_store *store);
 rill_ts_t rill_store_ts(const struct rill_store *store);
 size_t rill_store_quant(const struct rill_store *store);
 size_t rill_store_keys_count(const struct rill_store *store, enum rill_col column);
-size_t rill_store_pairs(const struct rill_store *store);
+size_t rill_store_rows(const struct rill_store *store);
 size_t rill_store_index_len(const struct rill_store *store, enum rill_col col);
 
 
 struct rill_space* rill_store_space(struct rill_store *store);
 size_t rill_store_space_header(struct rill_space *space);
 size_t rill_store_space_index(struct rill_space *space, enum rill_col col);
-size_t rill_store_space_pairs(struct rill_space *space, enum rill_col col);
+size_t rill_store_space_rows(struct rill_space *space, enum rill_col col);
 void rill_space_free(struct rill_space* space);
 
 
-struct rill_pairs *rill_store_query_value(
-        struct rill_store *store, rill_val_t val, struct rill_pairs *out);
-struct rill_pairs *rill_store_query_key(
-        struct rill_store *store, rill_key_t key, struct rill_pairs *out);
+struct rill_rows *rill_store_query_value(
+        struct rill_store *store, rill_val_t val, struct rill_rows *out);
+struct rill_rows *rill_store_query_key(
+        struct rill_store *store, rill_val_t key, struct rill_rows *out);
 
 
 size_t rill_store_keys(
@@ -148,7 +146,7 @@ size_t rill_store_keys(
 struct rill_store_it *rill_store_begin(
         struct rill_store *store, enum rill_col column);
 void rill_store_it_free(struct rill_store_it *it);
-bool rill_store_it_next(struct rill_store_it *it, struct rill_kv *kv);
+bool rill_store_it_next(struct rill_store_it *it, struct rill_row *row);
 
 
 // -----------------------------------------------------------------------------
@@ -162,7 +160,7 @@ enum { rill_acc_read_only = 0 };
 struct rill_acc *rill_acc_open(const char *dir, size_t cap);
 void rill_acc_close(struct rill_acc *acc);
 
-void rill_acc_ingest(struct rill_acc *acc, rill_key_t key, rill_val_t val);
+void rill_acc_ingest(struct rill_acc *acc, rill_val_t key, rill_val_t val);
 bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now);
 
 
@@ -182,22 +180,22 @@ struct rill_query;
 struct rill_query * rill_query_open(const char *dir);
 void rill_query_close(struct rill_query *db);
 
-struct rill_pairs *rill_query_key(
+struct rill_rows *rill_query_key(
         const struct rill_query *query,
-        rill_key_t key,
-        struct rill_pairs *out);
+        rill_val_t key,
+        struct rill_rows *out);
 
-struct rill_pairs *rill_query_keys(
+struct rill_rows *rill_query_keys(
         const struct rill_query *query,
-        const rill_key_t *keys, size_t len,
-        struct rill_pairs *out);
+        const rill_val_t *keys, size_t len,
+        struct rill_rows *out);
 
-struct rill_pairs *rill_query_vals(
+struct rill_rows *rill_query_vals(
         const struct rill_query *query,
         const rill_val_t *vals, size_t len,
-        struct rill_pairs *out);
+        struct rill_rows *out);
 
-struct rill_pairs *rill_query_all(
+struct rill_rows *rill_query_all(
     const struct rill_query *query, enum rill_col col);
 
 
