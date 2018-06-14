@@ -87,6 +87,18 @@ void rill_rows_compact(struct rill_rows *rows)
     rows->len = j + 1;
 }
 
+void rill_rows_invert(struct rill_rows* rows)
+{
+    for (size_t i = 0; i < rows->len; ++i) {
+        rows->data[i] = (struct rill_row) {
+            .a = rows->data[i].b,
+            .b = rows->data[i].a,
+        };
+    }
+
+    qsort(rows->data, rows->len, sizeof(*rows->data), &row_cmp);
+}
+
 void rill_rows_print(const struct rill_rows *rows)
 {
     const rill_val_t no_key = -1ULL;
@@ -106,14 +118,4 @@ void rill_rows_print(const struct rill_rows *rows)
     }
 
     if (rows->len) printf(" ]\n");
-}
-
-void rill_rows_invert(struct rill_rows* rows)
-{
-    for (size_t i = 0; i < rows->len; ++i) {
-        rows->data[i] = (struct rill_row) {
-            .a = rows->data[i].b,
-            .b = rows->data[i].a,
-        };
-    }
 }

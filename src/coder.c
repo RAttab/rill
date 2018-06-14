@@ -93,6 +93,8 @@ static inline bool coder_write_sep(struct encoder *coder)
     return true;
 }
 
+// \todo might want to just write directly to region since out-of-bounds are the
+// rare case.
 static inline bool coder_write_val(struct encoder *coder, rill_val_t val)
 {
     val = vals_vtoi(&coder->rev, val);

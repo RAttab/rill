@@ -24,6 +24,8 @@ static size_t vals_vtoi(vals_rev_t *rev, rill_val_t val)
     return ret.value;
 }
 
+// \todo should technically return bool for htable resize errors. Need to fix
+// htable interface.
 static void vals_rev_make(struct vals *vals, vals_rev_t *rev)
 {
     htable_reset(rev);
@@ -60,7 +62,7 @@ static void vals_compact(struct vals *vals)
     vals->len = j + 1;
 }
 
-static struct vals *vals_cols_from_rows(struct rill_rows *rows, enum rill_col col)
+static struct vals *vals_for_col(struct rill_rows *rows, enum rill_col col)
 {
     struct vals *vals =
         calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * rows->len);
@@ -69,7 +71,41 @@ static struct vals *vals_cols_from_rows(struct rill_rows *rows, enum rill_col co
 
     vals->len = rows->len;
     for (size_t i = 0; i < rows->len; ++i)
-        vals->data[i] = col == rill_col_a ? rows->data[i].key : rows->data[i].val;
+        vals->data[i] = rill_row_get(&rows->data[i], col);
+
+    vals_compact(vals);
+    return vals;
+}
+
+static struct vals *vals_add_index(struct vals *vals, struct index *index)
+{
+    assert(merge);
+
+    if (!vals) {
+        vals = calloc(1, sizeof(*vals) + index->len * sizeof(vals->data[0]));
+        if (!vals) {
+            rill_fail("unable to allocate memory for vals: %lu", index->len);
+            return NULL;
+        }
+
+        for (size_t i = 0; i < index->len; ++i)
+            vals->data[i] = index->data[i].key;
+        vals->len = index->len;
+
+        return vals;
+    }
+
+    size_t len = vals->len + index->len;
+    vals = realloc(vals, sizeof(*vals) + len * sizeof(vals->data[0]));
+    if (!vals) {
+        rill_fail("unable to allocate memory for vals: %lu + %lu",
+                vals->len, index->len);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < index->len; ++i)
+        vals->data[vals->len + i] = index->data[i].key;
+    vals->len += index->len;
 
     vals_compact(vals);
     return vals;

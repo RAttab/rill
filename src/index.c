@@ -8,9 +8,9 @@
 // config
 // -----------------------------------------------------------------------------
 
-struct rill_packed index_row
+struct rill_packed index_kv
 {
-    rill_val_t key;
+    uint64_t key;
     uint64_t off;
 };
 
@@ -18,17 +18,17 @@ struct rill_packed index
 {
     uint64_t len;
     uint64_t __unused; // kept for backwards compatibility
-    struct index_row data[];
+    struct index_kv data[];
 };
 
-static size_t index_cap(size_t rows)
+static size_t index_cap(size_t len)
 {
-    return sizeof(struct index) + rows * sizeof(struct index_row);
+    return sizeof(struct index) + len * sizeof(struct index_kv);
 }
 
 static void index_put(struct index *index, rill_val_t key, uint64_t off)
 {
-    index->data[index->len] = (struct index_row) { .key = key, .off = off };
+    index->data[index->len] = (struct index_kv) { .key = key, .off = off };
     index->len++;
 }
 
@@ -38,7 +38,7 @@ static bool index_find(
 {
     size_t idx = 0;
     size_t len = index->len;
-    struct index_row *low = index->data;
+    struct index_kv *low = index->data;
 
     while (len > 1) {
         size_t mid = len / 2;
@@ -46,7 +46,7 @@ static bool index_find(
         else { low += mid; len -= mid; idx += mid;}
     }
 
-    struct index_row *row = &index->data[idx];
+    struct index_kv *row = &index->data[idx];
     if (row->key != key) return false;
     *key_idx = idx;
     *off = row->off;

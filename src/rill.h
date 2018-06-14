@@ -40,6 +40,19 @@ typedef uint64_t rill_val_t;
 
 
 // -----------------------------------------------------------------------------
+// col
+// -----------------------------------------------------------------------------
+
+enum { rill_cols = 2 };
+enum rill_col { rill_col_a = 0, rill_col_b = 1 };
+
+inline enum rill_col rill_col_flip(enum rill_col col)
+{
+    return 1 - col;
+}
+
+
+// -----------------------------------------------------------------------------
 // row
 // -----------------------------------------------------------------------------
 
@@ -62,6 +75,12 @@ inline int rill_row_cmp(const struct rill_row *lhs, const struct rill_row *rhs)
     if (lhs->b > rhs->b) return +1;
 
     return 0;
+}
+
+inline rill_val_t rill_row_get(const struct rill_row *row, enum rill_col col)
+{
+    // Avoids branches but could be dangerous if col happens to be giberrish.
+    return ((rill_val_t *) row)[col];
 }
 
 
@@ -91,11 +110,8 @@ void rill_rows_print(const struct rill_rows *);
 // store
 // -----------------------------------------------------------------------------
 
-enum rill_col { rill_col_a = 0, rill_col_b = 1 };
-
 struct rill_store;
 struct rill_store_it;
-struct rill_space;
 
 struct rill_store *rill_store_open(const char *file);
 void rill_store_close(struct rill_store *store);
@@ -111,38 +127,33 @@ bool rill_store_merge(
         rill_ts_t ts, size_t quant,
         struct rill_store **list, size_t len);
 
-bool rill_store_rm(struct rill_store *store);
+bool rill_store_rm(struct rill_store *);
 
-const char * rill_store_file(const struct rill_store *store);
-unsigned rill_store_version(const struct rill_store *store);
-rill_ts_t rill_store_ts(const struct rill_store *store);
-size_t rill_store_quant(const struct rill_store *store);
-size_t rill_store_keys_count(const struct rill_store *store, enum rill_col column);
-size_t rill_store_rows(const struct rill_store *store);
-size_t rill_store_index_len(const struct rill_store *store, enum rill_col col);
+const char * rill_store_file(const struct rill_store *);
+unsigned rill_store_version(const struct rill_store *);
+rill_ts_t rill_store_ts(const struct rill_store *);
+size_t rill_store_quant(const struct rill_store *);
+size_t rill_store_rows(const struct rill_store *);
 
+size_t rill_store_vals(
+        const struct rill_store *, enum rill_col, rill_val_t *out, size_t len);
+size_t rill_store_vals_count(const struct rill_store *, enum rill_col);
 
-struct rill_space* rill_store_space(struct rill_store *store);
-size_t rill_store_space_header(struct rill_space *space);
-size_t rill_store_space_index(struct rill_space *space, enum rill_col col);
-size_t rill_store_space_rows(struct rill_space *space, enum rill_col col);
-void rill_space_free(struct rill_space* space);
+ssize_t rill_store_query(
+        const struct rill_store *, enum rill_col, rill_val_t, struct rill_rows *out);
 
+struct rill_store_it *rill_store_begin(const const struct rill_store *, enum rill_col);
+void rill_store_it_free(struct rill_store_it *);
+bool rill_store_it_next(struct rill_store_it *, struct rill_row *out);
 
-struct rill_rows *rill_store_query_value(
-        struct rill_store *store, rill_val_t val, struct rill_rows *out);
-struct rill_rows *rill_store_query_key(
-        struct rill_store *store, rill_val_t key, struct rill_rows *out);
+struct rill_store_stats
+{
+    size_t header_bytes;
+    size_t index_bytes[2];
+    size_t rows_bytes[2];
+};
 
-
-size_t rill_store_keys(
-        const struct rill_store *store, rill_val_t *out, size_t cap,
-        enum rill_col column);
-
-struct rill_store_it *rill_store_begin(
-        struct rill_store *store, enum rill_col column);
-void rill_store_it_free(struct rill_store_it *it);
-bool rill_store_it_next(struct rill_store_it *it, struct rill_row *row);
+bool rill_store_stats(const struct rill_store *, struct rill_store_stats *);
 
 
 // -----------------------------------------------------------------------------
