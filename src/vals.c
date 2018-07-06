@@ -15,7 +15,7 @@ struct rill_packed vals
 
 typedef struct htable vals_rev_t;
 
-static size_t vals_vtoi(const vals_rev_t *rev, rill_val_t val)
+static size_t vals_vtoi(vals_rev_t *rev, rill_val_t val)
 {
     if (!val) return 0; // \todo giant hack for coder_finish
 
@@ -79,7 +79,7 @@ static struct vals *vals_for_col(const struct rill_rows *rows, enum rill_col col
 
 static struct vals *vals_add_index(struct vals *vals, const struct index *index)
 {
-    assert(merge);
+    assert(index);
 
     if (!vals) {
         vals = calloc(1, sizeof(*vals) + index->len * sizeof(vals->data[0]));

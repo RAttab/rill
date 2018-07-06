@@ -90,6 +90,8 @@ static struct encoder store_encoder(
         enum rill_col col,
         struct vals *vals[rill_cols])
 {
+    enum rill_col other_col = rill_col_flip(col);
+    
     size_t start = store->head->data_off[col];
     size_t end = col == rill_col_a ?
         store->head->data_off[other_col] : store->vma_len;
@@ -102,7 +104,7 @@ static struct encoder store_encoder(
 }
 
 static struct decoder store_decoder_at(
-        struct rill_store *store,
+        const struct rill_store *store,
         enum rill_col col,
         size_t key_idx,
         uint64_t off)
@@ -123,7 +125,8 @@ static struct decoder store_decoder_at(
             key_idx);
 }
 
-static struct decoder store_decoder(struct rill_store *store, enum rill_col col)
+static struct decoder store_decoder(
+        const struct rill_store *store, enum rill_col col)
 {
     return store_decoder_at(store, 0, 0, col);
 }
@@ -328,7 +331,7 @@ static void writer_close(
 static void writer_offsets_init(
         struct rill_store *store, struct vals *vals[rill_cols])
 {
-    off = sizeof(struct header);
+    uint64_t off = sizeof(struct header);
 
     store->head->index_off[rill_col_a] = off;
     store->index[rill_col_a] = store_ptr(store, off);
@@ -360,14 +363,12 @@ bool rill_store_write(
 
     struct vals *vals[rill_cols] = {0};
     for (size_t col = 0; col < rill_cols; ++col) {
-        vals[i] = vals_for_col(rows, i);
-        if (!vals[i]) goto fail_vals;
+        vals[col] = vals_for_col(rows, col);
+        if (!vals[col]) goto fail_vals;
     }
 
     struct rill_store store = {0};
-    if (!writer_open(&store, file, vals[rill_col_a], vals[rill_col_b],
-                    rows->len, ts, quant))
-    {
+    if (!writer_open(&store, file, vals, rows->len, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
@@ -482,8 +483,8 @@ bool rill_store_merge(
         if (!list[i]) continue;
 
         for (size_t col = 0; i < rill_cols; ++i) {
-            struct vals *ret = val_add_index(vals[col], list[i]->index[col]);
-            if (!vals) goto fail_vals;
+            struct vals *ret = vals_add_index(vals[col], list[i]->index[col]);
+            if (!ret) goto fail_vals;
             vals[col] = ret;
         }
 
@@ -491,9 +492,7 @@ bool rill_store_merge(
     }
 
     struct rill_store store = {0};
-    if (!writer_open(&store, file, vals[rill_col_a], vals[rill_col_b],
-                    rows, ts, quant))
-    {
+    if (!writer_open(&store, file, vals, rows, ts, quant)) {
         rill_fail("unable to create '%s'", file);
         goto fail_open;
     }
@@ -511,7 +510,7 @@ bool rill_store_merge(
     if (!coder_finish(&encoder_b)) goto fail_coder_b;
 
     store.head->rows = encoder_a.rows;
-    writer_close(&store, store.head->data_b_off + coder_off(&encoder_b));
+    writer_close(&store, store.head->data_off[rill_col_b] + coder_off(&encoder_b));
 
     coder_close(&encoder_a);
     coder_close(&encoder_b);
@@ -586,7 +585,7 @@ size_t rill_store_vals(
 }
 
 
-ssize_t rill_store_query(
+bool rill_store_query(
         const struct rill_store *store,
         enum rill_col col,
         rill_val_t key,
@@ -594,22 +593,20 @@ ssize_t rill_store_query(
 {
     uint64_t off = 0;
     size_t key_idx = 0;
-    if (!index_find(store->index[col], key, &key_idx, &off)) return 0;
+    if (!index_find(store->index[col], key, &key_idx, &off)) return true;
 
     struct rill_row row = {0};
     struct decoder coder = store_decoder_at(store, col, key_idx, off);
 
-    ssize_t count = 0;
     while (true) {
-        if (!coder_decode(&coder, &row)) return -1;
+        if (!coder_decode(&coder, &row)) return false;
         if (rill_row_nil(&row)) break;
-        assert(row.key == key);
+        assert(row.a == key);
 
-        if (!rill_rows_push(result, row.key, row.val)) return -1;
-        count++;
+        if (!rill_rows_push(out, row.a, row.b)) return false;
     }
 
-    return count;
+    return true;
 }
 
 
@@ -649,11 +646,15 @@ void rill_store_space(
 {
     *out = (struct rill_store_stats) {
         .header_bytes = sizeof(*store->head),
-        .index_bytes[rill_col_a] = store->head->index_b_off - store->head->index_a_off,
-        .index_bytes[rill_col_b] = store->head->data_a_off - store->head->index_b_off,
-        .rows_bytes[rill_col_a] = store->head->data_b_off - store->head->data_a_off,
-        .rows_bytes[rill_col_b] = store->vma_len - store->head->data_b_off,
+        
+        .index_bytes[rill_col_a] = store->head->index_off[rill_col_b] -
+                                   store->head->index_off[rill_col_a],
+        .index_bytes[rill_col_b] = store->head->data_off[rill_col_a] -
+                                   store->head->index_off[rill_col_b],
+        
+        .rows_bytes[rill_col_a] = store->head->data_off[rill_col_b] -
+                                  store->head->data_off[rill_col_a],
+        .rows_bytes[rill_col_b] = store->vma_len -
+                                  store->head->data_off[rill_col_b],
     };
-
-    return ret;
 }

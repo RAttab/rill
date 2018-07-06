@@ -23,11 +23,6 @@ extern inline int rill_row_cmp(const struct rill_row *, const struct rill_row *)
 // rows
 // -----------------------------------------------------------------------------
 
-static size_t adjust_cap(size_t cap, size_t len)
-{
-    return cap;
-}
-
 void rill_rows_free(struct rill_rows *rows)
 {
     free(rows->data);
@@ -60,7 +55,7 @@ bool rill_rows_push(struct rill_rows *rows, rill_val_t a, rill_val_t b)
     assert(a && b);
     if (!rill_rows_reserve(rows, rows->len + 1)) return false;
 
-    rows->data[rows->len] = (struct rill_row) { .key = key, .val = val };
+    rows->data[rows->len] = (struct rill_row) { .a = a, .b = b };
     rows->len++;
 
     return rows;
@@ -111,19 +106,19 @@ bool rill_rows_copy(const struct rill_rows *rows, struct rill_rows *out)
 
 void rill_rows_print(const struct rill_rows *rows)
 {
-    const rill_val_t no_key = -1ULL;
-    rill_val_t key = no_key;
+    const rill_val_t nil = -1ULL;
+    rill_val_t key = nil;
 
     printf("rows(%lu, %lu):\n", rows->len, rows->cap);
 
     for (size_t i = 0; i < rows->len; ++i) {
         const struct rill_row *row = &rows->data[i];
 
-        if (row->key == key) printf(", %p", row->b);
+        if (row->a == key) printf(", %p", (void *) row->b);
         else {
-            if (key != no_key) printf("]\n");
-            printf("  %p: [ %p", (void *) row->a, row->b);
-            key = row->key;
+            if (key != nil) printf("]\n");
+            printf("  %p: [ %p", (void *) row->a, (void *) row->b);
+            key = row->a;
         }
     }
 

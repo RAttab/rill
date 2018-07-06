@@ -116,17 +116,17 @@ static inline bool coder_write_val(struct encoder *coder, rill_val_t val)
 
 static bool coder_encode(struct encoder *coder, const struct rill_row *row)
 {
-    if (coder->key != row->key) {
+    if (coder->key != row->a) {
         if (rill_likely(coder->key)) {
             if (!coder_write_sep(coder)) return false;
         }
 
-        index_put(coder->index, row->key, coder_off(coder));
-        coder->key = row->key;
+        index_put(coder->index, row->a, coder_off(coder));
+        coder->key = row->a;
         coder->keys++;
     }
 
-    if (!coder_write_val(coder, row->val)) return false;
+    if (!coder_write_val(coder, row->b)) return false;
 
     coder->rows++;
     return true;
@@ -192,18 +192,18 @@ static inline bool coder_read_val(struct decoder *coder, rill_val_t *val)
 static bool coder_decode(struct decoder *coder, struct rill_row *row)
 {
     if (rill_likely(coder->key)) {
-        row->key = coder->key;
-        if (!coder_read_val(coder, &row->val)) return false;
-        if (row->val) return true;
+        row->a = coder->key;
+        if (!coder_read_val(coder, &row->b)) return false;
+        if (row->b) return true;
     }
 
     coder->key = index_get(coder->index, coder->keys);
     coder->keys++;
 
-    row->key = coder->key;
-    if (!row->key) return true; // eof
+    row->a = coder->key;
+    if (!row->a) return true; // eof
 
-    return coder_read_val(coder, &row->val);
+    return coder_read_val(coder, &row->b);
 }
 
 static struct decoder make_decoder_at(

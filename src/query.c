@@ -79,7 +79,7 @@ bool rill_query_key(
     return true;
 }
 
-struct rill_rows *rill_query_keys(
+bool rill_query_keys(
         const struct rill_query *query,
         enum rill_col col,
         const rill_val_t *keys, size_t len,
@@ -89,11 +89,11 @@ struct rill_rows *rill_query_keys(
 
     for (size_t i = 0; i < query->len; ++i) {
         for (size_t j = 0; i < len; ++j) {
-            if (!rill_store_query_key(query->list[i], col, keys[j], out))
+            if (!rill_store_query(query->list[i], col, keys[j], out))
                 return false;
         }
     }
 
-    rill_rows_compact(result);
+    rill_rows_compact(out);
     return true;
 }

@@ -40,7 +40,7 @@ struct rill_packed header
 
 struct rill_packed row
 {
-    uint64_t key, val;
+    uint64_t a, b;
 };
 
 struct rill_acc
@@ -178,16 +178,16 @@ void rill_acc_close(struct rill_acc *acc)
     free(acc);
 }
 
-void rill_acc_ingest(struct rill_acc *acc, rill_val_t key, rill_val_t val)
+void rill_acc_ingest(struct rill_acc *acc, rill_val_t a, rill_val_t b)
 {
-    assert(key && val);
+    assert(a && b);
 
     size_t write = atomic_load_explicit(&acc->head->write, memory_order_relaxed);
     size_t index = write % acc->head->len;
     struct row *row = &acc->data[index];
 
-    row->key = key;
-    row->val = val;
+    row->a = a;
+    row->b = b;
 
     atomic_store_explicit(&acc->head->write, write + 1, memory_order_release);
 }
@@ -206,28 +206,28 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
     }
 
     struct rill_rows rows = {0};
-    if (!rill_rows_reserve(end - start)) goto fail_rows_reserve;
+    if (!rill_rows_reserve(&rows, end - start)) goto fail_rows_reserve;
 
     for (size_t i = start; i < end; ++i) {
         size_t index = i % acc->head->len;
         struct row *row = &acc->data[index];
 
-        if (!rill_rows_push(rows, row->key, row->val)) goto fail_rows_push;
+        if (!rill_rows_push(&rows, row->a, row->b)) goto fail_rows_push;
     }
 
-    if (!rill_store_write(file, now, 0, rows)) {
+    if (!rill_store_write(file, now, 0, &rows)) {
         rill_fail("unable to write acc file '%s'", file);
         goto fail_write;
     }
 
     atomic_store_explicit(&acc->head->read, end, memory_order_release);
 
-    rill_rows_free(rows);
+    rill_rows_free(&rows);
     return true;
 
   fail_write:
   fail_rows_push:
-    rill_rows_free(rows);
+    rill_rows_free(&rows);
   fail_rows_reserve:
     return false;
 }

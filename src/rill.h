@@ -140,10 +140,10 @@ size_t rill_store_vals(
         const struct rill_store *, enum rill_col, rill_val_t *out, size_t len);
 size_t rill_store_vals_count(const struct rill_store *, enum rill_col);
 
-ssize_t rill_store_query(
+bool rill_store_query(
         const struct rill_store *, enum rill_col, rill_val_t, struct rill_rows *out);
 
-struct rill_store_it *rill_store_begin(const const struct rill_store *, enum rill_col);
+struct rill_store_it *rill_store_begin(const struct rill_store *, enum rill_col);
 void rill_store_it_free(struct rill_store_it *);
 bool rill_store_it_next(struct rill_store_it *, struct rill_row *out);
 
@@ -168,7 +168,7 @@ enum { rill_acc_read_only = 0 };
 struct rill_acc *rill_acc_open(const char *dir, size_t cap);
 void rill_acc_close(struct rill_acc *acc);
 
-void rill_acc_ingest(struct rill_acc *acc, rill_val_t key, rill_val_t val);
+void rill_acc_ingest(struct rill_acc *acc, rill_val_t a, rill_val_t b);
 bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now);
 
 
