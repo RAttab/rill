@@ -37,7 +37,7 @@ bool rill_rows_reserve(struct rill_rows *rows, size_t cap)
 {
     if (rill_likely(cap <= rows->cap)) return true;
 
-    size_t new_cap = rows->cap;
+    size_t new_cap = rows->cap ? rows->cap : 1;
     while (new_cap < cap) new_cap *= 2;
 
     rows->data = realloc(rows->data, new_cap * sizeof(rows->data[0]));

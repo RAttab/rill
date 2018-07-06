@@ -17,7 +17,7 @@ static struct rill_store *make_store(const char *name, struct rill_rows *rows)
     assert(rill_store_write(name, 0, 0, rows));
 
     struct rill_store *store = rill_store_open(name);
-    assert(store);
+    if (!store) rill_abort();
 
     return store;
 }

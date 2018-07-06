@@ -43,7 +43,7 @@ $CC -o rill_ingest "${PREFIX}/src/rill_ingest.c" librill.a $CFLAGS
 $CC -o rill_merge "${PREFIX}/src/rill_merge.c" librill.a $CFLAGS
 $CC -o rill_count "${PREFIX}/src/rill_count.c" librill.a $CFLAGS
 
-$CC -o test_indexer "${PREFIX}/test/index_test.c" librill.a $CFLAGS && ./test_index
+$CC -o test_index "${PREFIX}/test/index_test.c" librill.a $CFLAGS && ./test_index
 $CC -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
 $CC -o test_store "${PREFIX}/test/store_test.c" librill.a $CFLAGS && ./test_store
 $CC -o test_rotate "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS

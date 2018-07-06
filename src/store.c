@@ -91,15 +91,14 @@ static struct encoder store_encoder(
         struct vals *vals[rill_cols])
 {
     enum rill_col other_col = rill_col_flip(col);
-    
+
     size_t start = store->head->data_off[col];
-    size_t end = col == rill_col_a ?
-        store->head->data_off[other_col] : store->vma_len;
+    size_t end = store->vma_len;
 
     return make_encoder(
             store->vma + start,
             store->vma + end,
-            vals[col],
+            vals[other_col],
             store->index[col]);
 }
 
@@ -646,12 +645,12 @@ void rill_store_stats(
 {
     *out = (struct rill_store_stats) {
         .header_bytes = sizeof(*store->head),
-        
+
         .index_bytes[rill_col_a] = store->head->index_off[rill_col_b] -
                                    store->head->index_off[rill_col_a],
         .index_bytes[rill_col_b] = store->head->data_off[rill_col_a] -
                                    store->head->index_off[rill_col_b],
-        
+
         .rows_bytes[rill_col_a] = store->head->data_off[rill_col_b] -
                                   store->head->data_off[rill_col_a],
         .rows_bytes[rill_col_b] = store->vma_len -
