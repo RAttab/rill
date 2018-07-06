@@ -43,7 +43,8 @@ bool test_rotate(void)
 
     {
         struct rill_query *query = rill_query_open(dir);
-        struct rill_rows *rows = rill_query_keys(query, &key, 1, rill_rows_new(1));
+        struct rill_rows rows = {0};
+        assert(rill_query_key(query, rill_col_a, key, &rows));
         rill_query_close(query);
 
         size_t i = 0;
@@ -66,7 +67,8 @@ bool test_rotate(void)
 
     {
         struct rill_query *query = rill_query_open(dir);
-        struct rill_rows *rows = rill_query_keys(query, &key, 1, rill_rows_new(1));
+        struct rill_rows rows = {0};
+        assert(rill_query_keys(query, rill_col_a, key, 1, &rows));
         rill_query_close(query);
 
         for (size_t i = 0; i < rows->len; ++i) {
