@@ -83,8 +83,8 @@ int main(int argc, char **argv)
     bool stats = false;
     bool vals = false;
     bool rows = false;
-    bool a = false;
-    bool b = false;
+    bool col_a = false;
+    bool col_b = false;
 
     int opt = 0;
     while ((opt = getopt(argc, argv, "+hsvrab")) != -1) {
@@ -93,8 +93,8 @@ int main(int argc, char **argv)
         case 's': stats = true; break;
         case 'v': vals = true; break;
         case 'r': rows = true; break;
-        case 'a': a = true; break;
-        case 'b': b = true; break;
+        case 'a': col_a = true; break;
+        case 'b': col_b = true; break;
         default:
             fprintf(stderr, "unknown argument: %c\n", opt);
             usage();
@@ -111,8 +111,8 @@ int main(int argc, char **argv)
     if (headers) dump_headers(store);
     if (stats) dump_stats(store);
 
-    if ((a && b) || (!a && !b)) usage();
-    enum rill_col col = a ? rill_col_a : rill_col_b;
+    enum rill_col col;
+    if (!rill_args_col(col_a, col_b, &col)) usage();
 
     if (vals) dump_vals(store, col);
     if (rows) dump_rows(store, col);
