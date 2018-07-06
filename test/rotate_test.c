@@ -49,12 +49,12 @@ bool test_rotate(void)
 
         size_t i = 0;
         for (rill_ts_t ts = 0; ts < expire_secs; ts += step) {
-            assert(rows->data[i].key == key);
-            assert(rows->data[i].val == ts + 1);
+            assert(rows.data[i].a == key);
+            assert(rows.data[i].b == ts + 1);
             ++i;
         }
 
-        rill_rows_free(rows);
+        rill_rows_free(&rows);
     }
 
     for (size_t i = 1; i <= 6; ++i) {
@@ -68,15 +68,15 @@ bool test_rotate(void)
     {
         struct rill_query *query = rill_query_open(dir);
         struct rill_rows rows = {0};
-        assert(rill_query_keys(query, rill_col_a, key, 1, &rows));
+        assert(rill_query_key(query, rill_col_a, key, &rows));
         rill_query_close(query);
 
-        for (size_t i = 0; i < rows->len; ++i) {
-            assert(rows->data[i].key == key);
-            assert(rows->data[i].val >= (5 * month_secs) + 1);
+        for (size_t i = 0; i < rows.len; ++i) {
+            assert(rows.data[i].a == key);
+            assert(rows.data[i].b >= (5 * month_secs) + 1);
         }
 
-        rill_rows_free(rows);
+        rill_rows_free(&rows);
     }
 
     rm(dir);

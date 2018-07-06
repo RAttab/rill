@@ -113,7 +113,7 @@ static void check_vals(struct rill_rows rows, struct vals *exp)
 
     free(vals);
     free(exp);
-    rill_rows_free(rows);
+    rill_rows_free(&rows);
     htable_reset(&rev);
 }
 
@@ -173,7 +173,7 @@ static struct index *lookup_alloc(struct vals *vals)
 
 static void check_coder(struct rill_rows rows)
 {
-    rill_rows_compact(rows);
+    rill_rows_compact(&rows);
 
     struct vals *vals[2] = {
         vals_for_col(&rows, rill_col_a),
@@ -184,7 +184,7 @@ static void check_coder(struct rill_rows rows)
     struct index *lookup = lookup_alloc(vals[rill_col_b]);
 
     size_t cap = coder_cap(vals[rill_col_b]->len, rows.len);
-    uint8_t buffer = calloc(1, cap);
+    uint8_t *buffer = calloc(1, cap);
 
     size_t len = 0;
     {
@@ -192,28 +192,28 @@ static void check_coder(struct rill_rows rows)
             make_encoder(buffer, buffer + cap, vals[rill_col_b], index);
 
         for (size_t i = 0; i < rows.len; ++i)
-            assert(coder_encode(&coder, &rows->data[i]));
+            assert(coder_encode(&coder, &rows.data[i]));
 
         assert(coder_finish(&coder));
-        len = len = coder.it - buffer;
+        len = coder.it - buffer;
     }
 
     if (false) {
-        printf("input: "); rill_rows_print(rows);
+        printf("input: "); rill_rows_print(&rows);
 
         printf("buffer: start=%p, len=%lu\n", (void *) buffer, len);
         hexdump(buffer, cap);
 
         printf("index: [ ");
         for (size_t i = 0; i < index->len; ++i) {
-            struct index_row *row = &index->data[i];
+            struct index_kv *row = &index->data[i];
             printf("{%p, %p} ", (void *) row->key, (void *) row->off);
         }
         printf("]\n");
 
         printf("lookup: [ ");
         for (size_t i = 0; i < lookup->len; ++i) {
-            struct index_row *row = &lookup->data[i];
+            struct index_kv *row = &lookup->data[i];
             printf("%p ", (void *) row->key);
         }
         printf("]\n");
@@ -223,27 +223,27 @@ static void check_coder(struct rill_rows rows)
         struct decoder coder =
             make_decoder_at(buffer, buffer + len, lookup, index, 0);
 
-        struct rill_kv kv = {0};
-        for (size_t i = 0; i < rows->len; ++i) {
-            assert(coder_decode(&coder, &kv));
-            assert(rill_kv_cmp(&kv, &rows->data[i]) == 0);
+        struct rill_row row = {0};
+        for (size_t i = 0; i < rows.len; ++i) {
+            assert(coder_decode(&coder, &row));
+            assert(rill_row_cmp(&row, &rows.data[i]) == 0);
         }
 
-        assert(coder_decode(&coder, &kv));
-        assert(rill_kv_nil(&kv));
+        assert(coder_decode(&coder, &row));
+        assert(rill_row_nil(&row));
     }
 
-    for (size_t i = 0; i < rows->len; ++i) {
+    for (size_t i = 0; i < rows.len; ++i) {
         size_t key_idx; uint64_t off;
-        assert(index_find(index, rows->data[i].key, &key_idx, &off));
+        assert(index_find(index, rows.data[i].a, &key_idx, &off));
         struct decoder coder = make_decoder_at(
-                buffer + off, buffer + len, vals, index, key_idx);
+                buffer + off, buffer + len, lookup, index, key_idx);
 
-        struct rill_kv kv = {0};
+        struct rill_row row = {0};
         do {
-            assert(coder_decode(&coder, &kv));
-            assert(kv.key == rows->data[i].key);
-        } while (kv.val != rows->data[i].val);
+            assert(coder_decode(&coder, &row));
+            assert(row.a == rows.data[i].a);
+        } while (row.b != rows.data[i].b);
     }
 
     free(buffer);

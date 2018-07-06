@@ -24,15 +24,15 @@
 // rows
 // -----------------------------------------------------------------------------
 
-struct rill_row row(rill_val_t key, rill_val_t val)
+struct rill_row row(rill_val_t a, rill_val_t b)
 {
-    return (struct rill_row) { .key = key, .val = val };
+    return (struct rill_row) { .a = a, .b = b };
 }
 
 #define make_rows(...)                                          \
     ({                                                          \
         struct rill_row rows[] = { __VA_ARGS__ };               \
-        make_row_impl(rows, sizeof(rows) / sizeof(rows[0]));    \
+        make_rows_impl(rows, sizeof(rows) / sizeof(rows[0]));   \
     })
 
 struct rill_rows make_rows_impl(const struct rill_row *rows, size_t len)
@@ -41,12 +41,12 @@ struct rill_rows make_rows_impl(const struct rill_row *rows, size_t len)
     assert(rill_rows_reserve(&result, len));
 
     for (size_t i = 0; i < len; ++i)
-        assert(rill_rows_push(result, rows[i].key, rows[i].val));
+        assert(rill_rows_push(&result, rows[i].a, rows[i].b));
 
     return result;
 }
 
-enum { rng_range_key = 250, rng_range_val = 100 };
+enum { rng_range_a = 250, rng_range_b = 100 };
 
 struct rill_rows make_rng_rows(struct rng *rng)
 {
@@ -55,9 +55,9 @@ struct rill_rows make_rng_rows(struct rng *rng)
     rill_rows_reserve(&rows, len);
 
     for (size_t i = 0; i < len; ++i) {
-        uint64_t key = rng_gen_range(rng, 1, rng_range_key);
-        uint64_t val = rng_gen_range(rng, 1, rng_range_val);
-        rill_rows_push(&rows, key, val);
+        uint64_t a = rng_gen_range(rng, 1, rng_range_a);
+        uint64_t b = rng_gen_range(rng, 1, rng_range_b);
+        rill_rows_push(&rows, a, b);
     }
 
     rill_rows_compact(&rows);
@@ -93,7 +93,7 @@ void rm(const char *path)
 // hexdump
 // -----------------------------------------------------------------------------
 
-void hexdump(const void *buffer, size_t len)
+void hexdump(const uint8_t *buffer, size_t len)
 {
     for (size_t i = 0; i < len;) {
         printf("%6p: ", (void *) i);

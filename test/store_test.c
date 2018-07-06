@@ -4,6 +4,7 @@
 */
 
 #include "test.h"
+#include "store.c"
 
 
 // -----------------------------------------------------------------------------
@@ -38,7 +39,7 @@ static void check_query(struct rill_rows rows)
     for (size_t col = 0; col < rill_cols; ++col) {
         for (size_t i = 0; i < expected.len;) {
             rill_rows_clear(&result);
-            assert(rill_store_query(store, col, expected.data[i].key, &result));
+            assert(rill_store_query(store, col, expected.data[i].a, &result));
 
             assert(expected.len - i >= result.len);
             for (size_t j = 0; j < result.len; ++j, ++i)
@@ -49,9 +50,9 @@ static void check_query(struct rill_rows rows)
     }
 
     rill_store_close(store);
-    rill_rows_free(rows);
-    rill_rows_free(expected);
-    rill_rows_free(result);
+    rill_rows_free(&rows);
+    rill_rows_free(&expected);
+    rill_rows_free(&result);
 }
 
 bool test_query(void)
@@ -63,7 +64,7 @@ bool test_query(void)
 
     struct rng rng = rng_make(0);
     for (size_t iterations = 0; iterations < 10; ++iterations)
-        check_query_key(make_rng_rows(&rng));
+        check_query(make_rng_rows(&rng));
 
     return true;
 }
@@ -84,14 +85,15 @@ static void check_vals(struct rill_rows rows)
 
     for (size_t col = 0; col < rill_cols; ++col) {
         size_t len = rill_store_vals_count(store, col);
-        rill_val_t vals[len] = {0};
+        rill_val_t *vals = calloc(len, sizeof(*vals));
 
         assert(rill_store_vals(store, col, vals, len) == len);
 
         for (size_t i = 0; i < len; ++i)
             assert(vals[i] == exp[col]->data[i]);
 
-        free(exp[col];
+        free(exp[col]);
+        free(vals);
     }
 }
 
@@ -105,7 +107,7 @@ bool test_vals(void)
 
     struct rng rng = rng_make(0);
     for (size_t iterations = 0; iterations < 10; ++iterations)
-        check_query_key(make_rng_rows(&rng));
+        check_vals(make_rng_rows(&rng));
 
     return true;
 }
@@ -141,8 +143,8 @@ static void check_it(struct rill_rows rows)
     }
 
     rill_store_close(store);
-    rill_rows_free(rows);
-    rill_rows_free(expected);
+    rill_rows_free(&rows);
+    rill_rows_free(&expected);
 }
 
 bool test_it(void)
@@ -154,7 +156,7 @@ bool test_it(void)
 
     struct rng rng = rng_make(0);
     for (size_t iterations = 0; iterations < 10; ++iterations)
-        check_query_key(make_rng_rows(&rng));
+        check_it(make_rng_rows(&rng));
 
     return true;
 }
