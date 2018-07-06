@@ -99,6 +99,16 @@ void rill_rows_invert(struct rill_rows* rows)
     qsort(rows->data, rows->len, sizeof(*rows->data), &row_cmp);
 }
 
+bool rill_rows_copy(const struct rill_rows *rows, struct rill_rows *out)
+{
+    if (!rill_rows_reserve(out, rows->len)) return false;
+
+    memcpy(out->data, rows->data, rows->len * sizeof(rows->data[0]));
+    out->len = rows->len;
+
+    return true;
+}
+
 void rill_rows_print(const struct rill_rows *rows)
 {
     const rill_val_t no_key = -1ULL;

@@ -15,7 +15,7 @@ struct rill_packed vals
 
 typedef struct htable vals_rev_t;
 
-static size_t vals_vtoi(vals_rev_t *rev, rill_val_t val)
+static size_t vals_vtoi(const vals_rev_t *rev, rill_val_t val)
 {
     if (!val) return 0; // \todo giant hack for coder_finish
 
@@ -26,7 +26,7 @@ static size_t vals_vtoi(vals_rev_t *rev, rill_val_t val)
 
 // \todo should technically return bool for htable resize errors. Need to fix
 // htable interface.
-static void vals_rev_make(struct vals *vals, vals_rev_t *rev)
+static void vals_rev_make(const struct vals *vals, vals_rev_t *rev)
 {
     htable_reset(rev);
     htable_reserve(rev, vals->len);
@@ -39,8 +39,8 @@ static void vals_rev_make(struct vals *vals, vals_rev_t *rev)
 
 static int val_cmp(const void *l, const void *r)
 {
-    rill_val_t lhs = *((rill_val_t *) l);
-    rill_val_t rhs = *((rill_val_t *) r);
+    rill_val_t lhs = *((const rill_val_t *) l);
+    rill_val_t rhs = *((const rill_val_t *) r);
 
     if (lhs < rhs) return -1;
     if (lhs > rhs) return 1;
@@ -62,7 +62,7 @@ static void vals_compact(struct vals *vals)
     vals->len = j + 1;
 }
 
-static struct vals *vals_for_col(struct rill_rows *rows, enum rill_col col)
+static struct vals *vals_for_col(const struct rill_rows *rows, enum rill_col col)
 {
     struct vals *vals =
         calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * rows->len);
@@ -77,7 +77,7 @@ static struct vals *vals_for_col(struct rill_rows *rows, enum rill_col col)
     return vals;
 }
 
-static struct vals *vals_add_index(struct vals *vals, struct index *index)
+static struct vals *vals_add_index(struct vals *vals, const struct index *index)
 {
     assert(merge);
 

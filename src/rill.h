@@ -103,6 +103,7 @@ void rill_rows_clear(struct rill_rows *);
 void rill_rows_invert(struct rill_rows *);
 void rill_rows_compact(struct rill_rows *);
 
+bool rill_rows_copy(const struct rill_rows *, struct rill_rows *out);
 void rill_rows_print(const struct rill_rows *);
 
 

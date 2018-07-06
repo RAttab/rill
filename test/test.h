@@ -29,36 +29,38 @@ struct rill_row row(rill_val_t key, rill_val_t val)
     return (struct rill_row) { .key = key, .val = val };
 }
 
-#define make_pair(...)                                          \
+#define make_rows(...)                                          \
     ({                                                          \
         struct rill_row rows[] = { __VA_ARGS__ };               \
-        make_pair_impl(rows, sizeof(rows) / sizeof(rows[0]));   \
+        make_row_impl(rows, sizeof(rows) / sizeof(rows[0]));    \
     })
 
-struct rill_rows *make_pair_impl(const struct rill_row *row, size_t len)
+struct rill_rows make_rows_impl(const struct rill_row *rows, size_t len)
 {
-    struct rill_rows *rows = rill_rows_new(len);
+    struct rill_rows result = {0};
+    assert(rill_rows_reserve(&result, len));
+
     for (size_t i = 0; i < len; ++i)
-        rows = rill_rows_push(rows, row[i].key, row[i].val);
-    return rows;
+        assert(rill_rows_push(result, rows[i].key, rows[i].val));
+
+    return result;
 }
 
 enum { rng_range_key = 500, rng_range_val = 100 };
 
-struct rill_rows *make_rng_rows(struct rng *rng)
+struct rill_rows make_rng_rows(struct rng *rng)
 {
     enum { len = 1000 };
-    struct rill_rows *rows = rill_rows_new(len);
+    struct rill_rows rows = {0};
+    rill_rows_reserve(&rows, len);
 
     for (size_t i = 0; i < len; ++i) {
         uint64_t key = rng_gen_range(rng, 1, rng_range_key);
         uint64_t val = rng_gen_range(rng, 1, rng_range_val);
-        rows = rill_rows_push(rows, key, val);
-        assert(rows);
+        rill_rows_push(&rows, key, val);
     }
 
-    rill_rows_compact(rows);
-
+    rill_rows_compact(&rows);
     return rows;
 }
 
@@ -84,4 +86,21 @@ void rm(const char *path)
 
     closedir(dir);
     rmdir(path);
+}
+
+
+// -----------------------------------------------------------------------------
+// hexdump
+// -----------------------------------------------------------------------------
+
+void hexdump(const void *buffer, size_t len)
+{
+    for (size_t i = 0; i < len;) {
+        printf("%6p: ", (void *) i);
+        for (size_t j = 0; j < 16 && i < len; ++i, ++j) {
+            if (j % 2 == 0) printf(" ");
+            printf("%02x", buffer[i]);
+        }
+        printf("\n");
+    }
 }
