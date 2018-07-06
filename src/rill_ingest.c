@@ -55,9 +55,9 @@ struct rill_store *load_file(const char *file, rill_ts_t ts, rill_ts_t quant)
     struct rill_row *it = data;
     struct rill_row *end = it + (st.st_size / sizeof(*it));
     for (; it < end; ++it) {
-        rill_val_t key = endian_btol(it->val);
-        rill_val_t val = endian_btol(it->key);
-        *it = (struct rill_row) { .key = key, .val = val };
+        rill_val_t a = endian_btol(it->a);
+        rill_val_t b = endian_btol(it->b);
+        *it = (struct rill_row) { .a = a, .b = b };
     }
 
     struct rill_rows *rows = ((struct rill_rows *)data) - 1;
