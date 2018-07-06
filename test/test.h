@@ -46,7 +46,7 @@ struct rill_rows make_rows_impl(const struct rill_row *rows, size_t len)
     return result;
 }
 
-enum { rng_range_key = 500, rng_range_val = 100 };
+enum { rng_range_key = 250, rng_range_val = 100 };
 
 struct rill_rows make_rng_rows(struct rng *rng)
 {
