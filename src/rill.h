@@ -187,23 +187,17 @@ struct rill_query;
 struct rill_query * rill_query_open(const char *dir);
 void rill_query_close(struct rill_query *db);
 
-struct rill_rows *rill_query_key(
+bool rill_query_key(
         const struct rill_query *query,
+        enum rill_col col,
         rill_val_t key,
         struct rill_rows *out);
 
-struct rill_rows *rill_query_keys(
+bool rill_query_keys(
         const struct rill_query *query,
+        enum rill_col col,
         const rill_val_t *keys, size_t len,
         struct rill_rows *out);
-
-struct rill_rows *rill_query_vals(
-        const struct rill_query *query,
-        const rill_val_t *vals, size_t len,
-        struct rill_rows *out);
-
-struct rill_rows *rill_query_all(
-    const struct rill_query *query, enum rill_col col);
 
 
 // -----------------------------------------------------------------------------

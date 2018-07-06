@@ -205,18 +205,14 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
         start = end - acc->head->len;
     }
 
-    struct rill_rows *rows = rill_rows_new(end - start);
-    if (!rows) {
-        rill_fail("unable to allocate rows for len '%lu'", acc->head->len);
-        goto fail_rows_alloc;
-    }
+    struct rill_rows rows = {0};
+    if (!rill_rows_reserve(end - start)) goto fail_rows_reserve;
 
     for (size_t i = start; i < end; ++i) {
         size_t index = i % acc->head->len;
         struct row *row = &acc->data[index];
 
-        struct rill_rows *ret = rill_rows_push(rows, row->key, row->val);
-        assert(ret == rows);
+        if (!rill_rows_push(rows, row->key, row->val)) goto fail_rows_push;
     }
 
     if (!rill_store_write(file, now, 0, rows)) {
@@ -230,7 +226,8 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
     return true;
 
   fail_write:
+  fail_rows_push:
     rill_rows_free(rows);
-  fail_rows_alloc:
+  fail_rows_reserve:
     return false;
 }
