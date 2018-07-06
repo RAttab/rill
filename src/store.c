@@ -641,8 +641,8 @@ bool rill_store_it_next(struct rill_store_it *it, struct rill_row *row)
 // stats
 // -----------------------------------------------------------------------------
 
-void rill_store_space(
-        const struct rill_store* store, struct rill_store_stats *out)
+void rill_store_stats(
+        const struct rill_store *store, struct rill_store_stats *out)
 {
     *out = (struct rill_store_stats) {
         .header_bytes = sizeof(*store->head),

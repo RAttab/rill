@@ -154,7 +154,7 @@ struct rill_store_stats
     size_t rows_bytes[2];
 };
 
-bool rill_store_stats(const struct rill_store *, struct rill_store_stats *);
+void rill_store_stats(const struct rill_store *, struct rill_store_stats *);
 
 
 // -----------------------------------------------------------------------------
