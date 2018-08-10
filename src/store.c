@@ -164,7 +164,7 @@ struct rill_store *rill_store_open(const char *file)
 
     size_t len = stat_ret.st_size;
     if (len < sizeof(struct header)) {
-        rill_fail("invalid size for '%s'", file);
+        rill_fail("invalid size '%lu' for '%s'", len, file);
         goto fail_size;
     }
 
@@ -348,7 +348,7 @@ static void writer_offsets_init(
 
 static void writer_offsets_finish(struct rill_store *store, size_t off)
 {
-    store->head->data_off[rill_col_b] = off;
+    store->head->data_off[rill_col_b] = store->head->data_off[rill_col_a] + off;
     store->data[rill_col_b] = store_ptr(store, off);
 }
 
@@ -367,10 +367,7 @@ bool rill_store_write(
     }
 
     struct rill_store store = {0};
-    if (!writer_open(&store, file, vals, rows->len, ts, quant)) {
-        rill_fail("unable to create '%s'", file);
-        goto fail_open;
-    }
+    if (!writer_open(&store, file, vals, rows->len, ts, quant)) goto fail_open;
 
     writer_offsets_init(&store, vals);
 
@@ -491,10 +488,7 @@ bool rill_store_merge(
     }
 
     struct rill_store store = {0};
-    if (!writer_open(&store, file, vals, rows, ts, quant)) {
-        rill_fail("unable to create '%s'", file);
-        goto fail_open;
-    }
+    if (!writer_open(&store, file, vals, rows, ts, quant)) goto fail_open;
 
     writer_offsets_init(&store, vals);
 
