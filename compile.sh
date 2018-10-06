@@ -6,13 +6,17 @@ set -o errexit -o nounset -o pipefail -o xtrace
 
 declare -a SRC
 SRC=(htable rng utils rows store acc rotate query)
+
+declare -a BIN
+BIN=(load dump query rotate ingest merge count)
+
+declare -a TEST
+TEST=(index coder store rotate)
+
 CC=${OTHERC:-gcc}
-
 LEAKCHECK_ENABLED=${LEAKCHECK_ENABLED:-}
-LEAKCHECK=${OTHERMEMCHECK:-valgrind}
-LEAKCHECK_ARGS="--leak-check=full --track-origins=yes --trace-children=yes --error-exitcode=1"
 
-CFLAGS="-g -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
+CFLAGS="-ggdb -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
 CFLAGS="$CFLAGS -I${PREFIX}/src"
 
 CFLAGS="$CFLAGS -Werror -Wall -Wextra"
@@ -35,25 +39,22 @@ for src in "${SRC[@]}"; do
 done
 ar rcs librill.a $OBJ
 
-$CC -o rill_load "${PREFIX}/src/rill_load.c" librill.a $CFLAGS
-$CC -o rill_dump "${PREFIX}/src/rill_dump.c" librill.a $CFLAGS
-$CC -o rill_query "${PREFIX}/src/rill_query.c" librill.a $CFLAGS
-$CC -o rill_rotate "${PREFIX}/src/rill_rotate.c" librill.a $CFLAGS
-$CC -o rill_ingest "${PREFIX}/src/rill_ingest.c" librill.a $CFLAGS
-$CC -o rill_merge "${PREFIX}/src/rill_merge.c" librill.a $CFLAGS
-$CC -o rill_count "${PREFIX}/src/rill_count.c" librill.a $CFLAGS
+for bin in "${BIN[@]}"; do
+    $CC -o "rill_$bin" "${PREFIX}/src/rill_$bin.c" librill.a $CFLAGS
+done
 
-$CC -o test_index "${PREFIX}/test/index_test.c" librill.a $CFLAGS && ./test_index
-$CC -o test_coder "${PREFIX}/test/coder_test.c" librill.a $CFLAGS && ./test_coder
-$CC -o test_store "${PREFIX}/test/store_test.c" librill.a $CFLAGS && ./test_store
-$CC -o test_rotate "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS
+for test in "${TEST[@]}"; do
+    $CC -o "test_$test" "${PREFIX}/test/${test}_test.c" librill.a $CFLAGS
+    "./test_$test"
+done
 
-if [ -n "$LEAKCHECK_ENABLED" ]
-then
-    echo test_indexer =======================================
-    $LEAKCHECK $LEAKCHECK_ARGS ./test_indexer
-    echo test_coder =========================================
-    $LEAKCHECK $LEAKCHECK_ARGS ./test_coder
-    echo test_store =========================================
-    $LEAKCHECK $LEAKCHECK_ARGS ./test_store
+if [ -n "$LEAKCHECK_ENABLED" ]; then
+    for test in "{TEST[@]}"; do
+        valgrind \
+            --leak-check=full \
+            --track-origins=yes \
+            --trace-children=yes \
+            --error-exitcode=1 \
+            "./test_$test"
+    done
 fi
