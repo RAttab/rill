@@ -478,7 +478,7 @@ bool rill_store_merge(
     for (size_t i = 0; i < list_len; ++i) {
         if (!list[i]) continue;
 
-        for (size_t col = 0; i < rill_cols; ++i) {
+        for (size_t col = 0; col < rill_cols; ++col) {
             struct vals *ret = vals_add_index(vals[col], list[i]->index[col]);
             if (!ret) goto fail_vals;
             vals[col] = ret;
