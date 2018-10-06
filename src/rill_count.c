@@ -10,31 +10,41 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void usage()
-{
-    fprintf(stderr, "rill_count <-a|-b> <file>\n");
-    exit(1);
-}
 
-void count(struct rill_store *store, enum rill_col col)
+// -----------------------------------------------------------------------------
+// count
+// -----------------------------------------------------------------------------
+
+static void count(struct rill_store *store, enum rill_col col)
 {
-    struct rill_kv kv;
+    struct rill_row row;
     struct rill_store_it *it = rill_store_begin(store, col);
 
-    rill_key_t key = 0;
+    rill_val_t key = 0;
     size_t count = 0;
-    while (rill_store_it_next(it, &kv)) {
-        if (rill_kv_nil(&kv)) break;
+    while (rill_store_it_next(it, &row)) {
+        if (rill_row_nil(&row)) break;
 
-        if (kv.key == key) count++;
+        if (row.a == key) count++;
         else {
             if (key) printf("%lu %p\n", count, (void *) key);
             count = 1;
-            key = kv.key;
+            key = row.a;
         }
     }
 
     rill_store_it_free(it);
+}
+
+
+// -----------------------------------------------------------------------------
+// main
+// -----------------------------------------------------------------------------
+
+static void usage()
+{
+    fprintf(stderr, "rill_count -<a|b> <file>\n");
+    exit(1);
 }
 
 int main(int argc, char **argv)
@@ -44,7 +54,7 @@ int main(int argc, char **argv)
     int opt = 0;
     bool col_a = false, col_b = false;
 
-    while ((opt = getopt(argc, argv, "ab")) != -1) {
+    while ((opt = getopt(argc, argv, "+ab")) != -1) {
         switch(opt) {
         case 'a': col_a = true; break;
         case 'b': col_b = true; break;
@@ -52,11 +62,15 @@ int main(int argc, char **argv)
         }
     }
 
+    if (optind >= argc) usage();
+
+    enum rill_col col;
+    if (!rill_args_col(col_a, col_b, &col)) usage();
+    
     struct rill_store *store = rill_store_open(argv[optind]);
     if (!store) rill_exit(1);
 
-    if (col_a) count(store, rill_col_a);
-    if (col_b) count(store, rill_col_b);
+    count(store, col);
 
     rill_store_close(store);
     return 0;

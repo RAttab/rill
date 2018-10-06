@@ -13,20 +13,57 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-bool is_file(const char *path)
+
+// -----------------------------------------------------------------------------
+// query
+// -----------------------------------------------------------------------------
+
+static bool is_file(const char *path)
 {
     struct stat st = {0};
     stat(path, &st);
     return S_ISREG(st.st_mode);
 }
 
-void usage()
+static void query(const char *db, enum rill_col col, rill_val_t val)
 {
-    fprintf(stderr, "rill_query [-k <key>|-v <val>] <db>\n");
+    struct rill_rows rows = {0};
+
+    if (is_file(db)) {
+        struct rill_store *store = rill_store_open(db);
+        if (!store) rill_exit(1);
+
+        if (!rill_store_query(store, col, val, &rows)) rill_exit(1);
+
+        rill_store_close(store);
+    }
+    else {
+        struct rill_query *query = rill_query_open(db);
+        if (!query) rill_exit(1);
+
+        if (!rill_query_key(query, col, val, &rows)) rill_exit(1);
+
+        rill_query_close(query);
+    }
+
+    for (size_t i = 0; i < rows.len; ++i)
+        printf("0x%lx 0x%lx\n", rows.data[i].a, rows.data[i].b);
+
+    rill_rows_free(&rows);
+}
+
+
+// -----------------------------------------------------------------------------
+// main
+// -----------------------------------------------------------------------------
+
+static void usage()
+{
+    fprintf(stderr, "rill_query -<a|b> <val> <db>\n");
     exit(1);
 }
 
-uint64_t read_u64(char *arg)
+static uint64_t read_u64(char *arg)
 {
     size_t n = strnlen(arg, 128);
 
@@ -60,49 +97,27 @@ uint64_t read_u64(char *arg)
 
 int main(int argc, char *argv[])
 {
-    rill_key_t key = 0;
-    rill_val_t val = 0;
+    bool col_a = false;
+    bool col_b = false;
 
     int opt = 0;
-    while ((opt = getopt(argc, argv, "k:v:")) != -1) {
+    while ((opt = getopt(argc, argv, "+ab")) != -1) {
         switch (opt) {
-        case 'k': key = read_u64(optarg); break;
-        case 'v': val = read_u64(optarg); break;
+        case 'a': col_a = true; break;
+        case 'b': col_b = true; break;
         default: usage(); exit(1);
         }
     }
 
-    if (key && val) { usage(); }
-    if (!key && !val) { usage(); }
-    if (optind >= argc) { usage(); }
+    if (optind + 1 >= argc) usage();
 
-    const char *db = argv[optind];
-    struct rill_pairs *pairs = rill_pairs_new(100);
+    enum rill_col col;
+    if (!rill_args_col(col_a, col_b, &col)) usage();
 
-    if (is_file(db)) {
-        struct rill_store *store = rill_store_open(db);
-        if (!store) rill_exit(1);
+    rill_val_t val = read_u64(argv[optind]);
+    const char *db = argv[optind + 1];
 
-        if (key) pairs = rill_store_query_key(store, key, pairs);
-        else pairs = rill_store_query_value(store, val, pairs);
-
-        rill_store_close(store);
-    }
-    else {
-        struct rill_query *query = rill_query_open(db);
-        if (!query) rill_exit(1);
-
-        if (key) pairs = rill_query_key(query, key, pairs);
-        else pairs = rill_query_vals(query, &val, 1, pairs);
-
-        rill_query_close(query);
-    }
-
-    if (!pairs) rill_exit(1);
-
-    for (size_t i = 0; i < pairs->len; ++i)
-        printf("0x%lx 0x%lx\n", pairs->data[i].key, pairs->data[i].val);
-
-    rill_pairs_free(pairs);
+    query(db, col, val);
+    
     return 0;
 }

@@ -24,7 +24,9 @@ static size_t vals_vtoi(vals_rev_t *rev, rill_val_t val)
     return ret.value;
 }
 
-static void vals_rev_make(struct vals *vals, vals_rev_t *rev)
+// \todo should technically return bool for htable resize errors. Need to fix
+// htable interface.
+static void vals_rev_make(const struct vals *vals, vals_rev_t *rev)
 {
     htable_reset(rev);
     htable_reserve(rev, vals->len);
@@ -37,8 +39,8 @@ static void vals_rev_make(struct vals *vals, vals_rev_t *rev)
 
 static int val_cmp(const void *l, const void *r)
 {
-    rill_val_t lhs = *((rill_val_t *) l);
-    rill_val_t rhs = *((rill_val_t *) r);
+    rill_val_t lhs = *((const rill_val_t *) l);
+    rill_val_t rhs = *((const rill_val_t *) r);
 
     if (lhs < rhs) return -1;
     if (lhs > rhs) return 1;
@@ -60,16 +62,50 @@ static void vals_compact(struct vals *vals)
     vals->len = j + 1;
 }
 
-static struct vals *vals_cols_from_pairs(struct rill_pairs *pairs, enum rill_col col)
+static struct vals *vals_for_col(const struct rill_rows *rows, enum rill_col col)
 {
     struct vals *vals =
-        calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * pairs->len);
+        calloc(1, sizeof(*vals) + sizeof(vals->data[0]) * rows->len);
 
     if (!vals) return NULL;
 
-    vals->len = pairs->len;
-    for (size_t i = 0; i < pairs->len; ++i)
-        vals->data[i] = col == rill_col_a ? pairs->data[i].key : pairs->data[i].val;
+    vals->len = rows->len;
+    for (size_t i = 0; i < rows->len; ++i)
+        vals->data[i] = rill_row_get(&rows->data[i], col);
+
+    vals_compact(vals);
+    return vals;
+}
+
+static struct vals *vals_add_index(struct vals *vals, const struct index *index)
+{
+    assert(index);
+
+    if (!vals) {
+        vals = calloc(1, sizeof(*vals) + index->len * sizeof(vals->data[0]));
+        if (!vals) {
+            rill_fail("unable to allocate memory for vals: %lu", index->len);
+            return NULL;
+        }
+
+        for (size_t i = 0; i < index->len; ++i)
+            vals->data[i] = index->data[i].key;
+        vals->len = index->len;
+
+        return vals;
+    }
+
+    size_t len = vals->len + index->len;
+    vals = realloc(vals, sizeof(*vals) + len * sizeof(vals->data[0]));
+    if (!vals) {
+        rill_fail("unable to allocate memory for vals: %lu + %lu",
+                vals->len, index->len);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < index->len; ++i)
+        vals->data[vals->len + i] = index->data[i].key;
+    vals->len += index->len;
 
     vals_compact(vals);
     return vals;

@@ -38,9 +38,9 @@ struct rill_packed header
     atomic_size_t write;
 };
 
-struct rill_packed kv
+struct rill_packed row
 {
-    uint64_t key, val;
+    uint64_t a, b;
 };
 
 struct rill_acc
@@ -52,7 +52,7 @@ struct rill_acc
     size_t vma_len;
 
     struct header *head;
-    struct kv *data;
+    struct row *data;
 };
 
 enum { min_cap = 32 };
@@ -178,16 +178,16 @@ void rill_acc_close(struct rill_acc *acc)
     free(acc);
 }
 
-void rill_acc_ingest(struct rill_acc *acc, rill_key_t key, rill_val_t val)
+void rill_acc_ingest(struct rill_acc *acc, rill_val_t a, rill_val_t b)
 {
-    assert(key && val);
+    assert(a && b);
 
     size_t write = atomic_load_explicit(&acc->head->write, memory_order_relaxed);
     size_t index = write % acc->head->len;
-    struct kv *kv = &acc->data[index];
+    struct row *row = &acc->data[index];
 
-    kv->key = key;
-    kv->val = val;
+    row->a = a;
+    row->b = b;
 
     atomic_store_explicit(&acc->head->write, write + 1, memory_order_release);
 }
@@ -205,32 +205,29 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now)
         start = end - acc->head->len;
     }
 
-    struct rill_pairs *pairs = rill_pairs_new(end - start);
-    if (!pairs) {
-        rill_fail("unable to allocate pairs for len '%lu'", acc->head->len);
-        goto fail_pairs_alloc;
-    }
+    struct rill_rows rows = {0};
+    if (!rill_rows_reserve(&rows, end - start)) goto fail_rows_reserve;
 
     for (size_t i = start; i < end; ++i) {
         size_t index = i % acc->head->len;
-        struct kv *kv = &acc->data[index];
+        struct row *row = &acc->data[index];
 
-        struct rill_pairs *ret = rill_pairs_push(pairs, kv->key, kv->val);
-        assert(ret == pairs);
+        if (!rill_rows_push(&rows, row->a, row->b)) goto fail_rows_push;
     }
 
-    if (!rill_store_write(file, now, 0, pairs)) {
+    if (!rill_store_write(file, now, 0, &rows)) {
         rill_fail("unable to write acc file '%s'", file);
         goto fail_write;
     }
 
     atomic_store_explicit(&acc->head->read, end, memory_order_release);
 
-    rill_pairs_free(pairs);
+    rill_rows_free(&rows);
     return true;
 
   fail_write:
-    rill_pairs_free(pairs);
-  fail_pairs_alloc:
+  fail_rows_push:
+    rill_rows_free(&rows);
+  fail_rows_reserve:
     return false;
 }

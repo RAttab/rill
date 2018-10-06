@@ -6,9 +6,9 @@
 // utils
 // -----------------------------------------------------------------------------
 
-static struct index *index_alloc(size_t pairs)
+static struct index *index_alloc(size_t rows)
 {
-    struct index *index = calloc(1, index_cap(pairs));
+    struct index *index = calloc(1, index_cap(rows));
 
     assert(index);
     assert(index->len == 0);
@@ -23,17 +23,17 @@ static struct index *index_alloc(size_t pairs)
 
 static bool test_index_build(void)
 {
-    enum { pairs = 10 };
+    enum { rows = 10 };
 
-    struct index *index = index_alloc(pairs);
+    struct index *index = index_alloc(rows);
 
-    rill_key_t data[pairs] = {0};
-    for (size_t i = 1; i < pairs; ++i) data[i] = data[i - 1] += 2;
+    rill_val_t data[rows] = {0};
+    for (size_t i = 1; i < rows; ++i) data[i] = data[i - 1] += 2;
 
-    for (size_t i = 0; i < pairs; i++)
+    for (size_t i = 0; i < rows; i++)
         index_put(index, data[i], i);
 
-    assert(index->len == pairs);
+    assert(index->len == rows);
     for (size_t i = 0; i < index->len; i++)
         assert(index_get(index, i) == data[i]);
 
@@ -48,7 +48,7 @@ static bool test_index_build(void)
 // test_index_lookup
 // -----------------------------------------------------------------------------
 
-static struct index *make_index(rill_key_t *data, size_t n)
+static struct index *make_index(rill_val_t *data, size_t n)
 {
     struct index *index = index_alloc(n);
     for (size_t i = 0; i < n; i++)
@@ -59,12 +59,12 @@ static struct index *make_index(rill_key_t *data, size_t n)
 
 #define index_from_keys(...)                                \
     ({                                                      \
-        rill_key_t keys[] = { __VA_ARGS__ };                \
+        rill_val_t keys[] = { __VA_ARGS__ };                \
         make_index(keys, sizeof(keys) / sizeof(keys[0]));   \
     })
 
 #define assert_found(index, ...) {                                  \
-    rill_key_t keys[] = { __VA_ARGS__ };                            \
+    rill_val_t keys[] = { __VA_ARGS__ };                            \
     size_t key_idx;                                                 \
     uint64_t val;                                                   \
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {   \
@@ -75,7 +75,7 @@ static struct index *make_index(rill_key_t *data, size_t n)
 }
 
 #define assert_not_found(index, ...) {                          \
-    rill_key_t keys[] = { __VA_ARGS__ };                        \
+    rill_val_t keys[] = { __VA_ARGS__ };                        \
     size_t key_idx;                                             \
     uint64_t val;                                               \
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) \

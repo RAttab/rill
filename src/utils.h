@@ -84,3 +84,15 @@ static inline size_t to_vma_len(size_t len)
     if (!(len % page_len)) return len;
     return (len & ~(page_len - 1)) + page_len;
 }
+
+
+// -----------------------------------------------------------------------------
+// args
+// -----------------------------------------------------------------------------
+
+inline bool rill_args_col(bool a, bool b, enum rill_col *out)
+{
+    if ((a && b) || (!a && !b)) return false;
+    *out = a ? rill_col_a : rill_col_b;
+    return true;
+}
