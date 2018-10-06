@@ -127,7 +127,7 @@ static struct decoder store_decoder_at(
 static struct decoder store_decoder(
         const struct rill_store *store, enum rill_col col)
 {
-    return store_decoder_at(store, 0, 0, col);
+    return store_decoder_at(store, col, 0, 0);
 }
 
 
@@ -335,12 +335,12 @@ static void writer_offsets_init(
     store->head->index_off[rill_col_a] = off;
     store->index[rill_col_a] = store_ptr(store, off);
 
-    off += index_cap(vals[rill_col_b]->len);
+    off += index_cap(vals[rill_col_a]->len);
 
     store->head->index_off[rill_col_b] = off;
     store->index[rill_col_b] = store_ptr(store, off);
 
-    off += index_cap(vals[rill_col_a]->len);
+    off += index_cap(vals[rill_col_b]->len);
 
     store->head->data_off[rill_col_a] = off;
     store->data[rill_col_a] = store_ptr(store, off);
@@ -593,8 +593,7 @@ bool rill_store_query(
 
     while (true) {
         if (!coder_decode(&coder, &row)) return false;
-        if (rill_row_nil(&row)) break;
-        assert(row.a == key);
+        if (rill_row_nil(&row) || row.a != key) break;
 
         if (!rill_rows_push(out, row.a, row.b)) return false;
     }

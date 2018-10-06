@@ -123,7 +123,7 @@ static void check_it(struct rill_rows rows)
     rill_rows_copy(&rows, &expected);
     rill_rows_compact(&expected);
 
-    struct rill_store *store = make_store("test.store.query", &rows);
+    struct rill_store *store = make_store("test.store.it", &rows);
 
     for (size_t col = 0; col < rill_cols; ++col) {
         struct rill_store_it *it = rill_store_begin(store, col);
