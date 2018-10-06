@@ -17,7 +17,6 @@
 
 static void dump_headers(struct rill_store *store)
 {
-    printf("file:    %s\n", rill_store_file(store));
     printf("version: %u\n", rill_store_version(store));
     printf("ts:      %lu\n", rill_store_ts(store));
     printf("quant:   %lu\n", rill_store_quant(store));
@@ -31,7 +30,6 @@ static void dump_stats(struct rill_store *store)
     struct rill_store_stats stats = {0};
     rill_store_stats(store, &stats);
 
-    printf("file:     %s\n", rill_store_file(store));
     printf("header:   %zu\n", stats.header_bytes);
     printf("index[a]: %zu\n", stats.index_bytes[rill_col_a]);
     printf("index[b]: %zu\n", stats.index_bytes[rill_col_b]);
@@ -108,8 +106,12 @@ int main(int argc, char **argv)
 
     if (!headers && !stats && !vals && !rows) usage();
     
-    if (headers) dump_headers(store);
-    if (stats) dump_stats(store);
+    if (headers || stats) {
+        printf("file:     %s\n", rill_store_file(store));
+        if (headers) dump_headers(store);
+        if (stats) dump_stats(store);
+        return 0;
+    }
 
     enum rill_col col;
     if (!rill_args_col(col_a, col_b, &col)) usage();
