@@ -11,7 +11,7 @@ declare -a BIN
 BIN=(load dump query rotate ingest merge count)
 
 declare -a TEST
-TEST=(index coder store rotate)
+TEST=(index coder store)
 
 CC=${OTHERC:-gcc}
 LEAKCHECK_ENABLED=${LEAKCHECK_ENABLED:-}
@@ -47,6 +47,10 @@ for test in "${TEST[@]}"; do
     $CC -o "test_$test" "${PREFIX}/test/${test}_test.c" librill.a $CFLAGS
     "./test_$test"
 done
+
+# this one takes a while so it's usually run manually
+$CC -o "test_rotate" "${PREFIX}/test/rotate_test.c" librill.a $CFLAGS
+
 
 if [ -n "$LEAKCHECK_ENABLED" ]; then
     for test in "{TEST[@]}"; do
