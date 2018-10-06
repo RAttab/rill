@@ -104,6 +104,16 @@ bool rill_rows_copy(const struct rill_rows *rows, struct rill_rows *out)
     return true;
 }
 
+bool rill_rows_append(struct rill_rows *rows, struct rill_rows *other)
+{
+    if (!rill_rows_reserve(rows, rows->len + other->len)) return false;
+    memcpy(rows->data + rows->len, other->data, other->len * sizeof(other->data[0]));
+    rows->len += other->len;
+
+    return true;
+}
+
+
 void rill_rows_print(const struct rill_rows *rows)
 {
     const rill_val_t nil = -1ULL;

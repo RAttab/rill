@@ -163,6 +163,84 @@ bool test_it(void)
 
 
 // -----------------------------------------------------------------------------
+// merge
+// -----------------------------------------------------------------------------
+
+static void check_merge(struct rill_rows a, struct rill_rows b)
+{
+    struct rill_rows expected = {0};
+    rill_rows_append(&expected, &a);
+    rill_rows_append(&expected, &b);
+    rill_rows_compact(&expected);
+
+    struct rill_store *to_merge[] = {
+        make_store("test.store.merge.a", &a),
+        make_store("test.store.merge.b", &b)
+    };
+
+    const char *file = "test.store.merge.result";
+    unlink(file);
+    if (!rill_store_merge(file, 0, 0, to_merge, 2)) rill_abort();
+    struct rill_store *store = rill_store_open(file);
+    assert(store);
+
+
+    for (size_t col = 0; col < rill_cols; ++col) {
+        struct rill_store_it *it = rill_store_begin(store, col);
+
+        struct rill_row row = {0};
+        for (size_t i = 0; i < expected.len; ++i) {
+            assert(rill_store_it_next(it, &row));
+            assert(!rill_row_cmp(&expected.data[i], &row));
+        }
+
+        assert(rill_store_it_next(it, &row));
+        assert(rill_row_nil(&row));
+
+        rill_store_it_free(it);
+
+        rill_rows_invert(&expected); // setup for next iteration.
+    }
+
+    rill_store_close(to_merge[0]);
+    rill_store_close(to_merge[1]);
+    rill_store_close(store);
+    rill_rows_free(&a);
+    rill_rows_free(&b);
+    rill_rows_free(&expected);
+}
+
+bool test_merge(void)
+{
+    check_merge(
+            make_rows(row(1, 10)),
+            make_rows(row(1, 10)));
+    check_merge(
+            make_rows(row(1, 10)),
+            make_rows(row(2, 20)));
+    check_merge(
+            make_rows(row(1, 10), row(1, 20)),
+            make_rows(row(2, 10), row(2, 20)));
+    check_merge(
+            make_rows(row(1, 10), row(1, 20)),
+            make_rows(row(1, 20), row(2, 10)));
+    check_merge(
+            make_rows(row(1, 10)),
+            make_rows(row(1, 10), row(2, 10), row(2, 20)));
+    check_merge(
+            make_rows(row(1, 10), row(2, 10), row(2, 20)),
+            make_rows(row(1, 10)));
+
+    struct rng rng = rng_make(0);
+    for (size_t iterations = 0; iterations < 10; ++iterations)
+        check_merge(make_rng_rows(&rng), make_rng_rows(&rng));
+
+    return true;
+
+}
+
+
+// -----------------------------------------------------------------------------
 // main
 // -----------------------------------------------------------------------------
 
@@ -174,6 +252,7 @@ int main(int argc, char **argv)
     ret = ret && test_query();
     ret = ret && test_vals();
     ret = ret && test_it();
+    ret = ret && test_merge();
 
     return ret ? 0 : 1;
 }

@@ -50,7 +50,7 @@ enum { rng_range_a = 250, rng_range_b = 100 };
 
 struct rill_rows make_rng_rows(struct rng *rng)
 {
-    enum { len = 1000 };
+    const size_t len = 1UL << rng_gen_range(rng, 9, 12);
     struct rill_rows rows = {0};
     rill_rows_reserve(&rows, len);
 
@@ -60,7 +60,6 @@ struct rill_rows make_rng_rows(struct rng *rng)
         rill_rows_push(&rows, a, b);
     }
 
-    rill_rows_compact(&rows);
     return rows;
 }
 
