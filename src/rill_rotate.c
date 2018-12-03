@@ -20,8 +20,7 @@ int main(int argc, const char **argv)
     (void) clock_gettime(CLOCK_REALTIME, &ts);
 
     printf("rotating '%s' at '%lu'\n", argv[1], ts.tv_sec);
-    if (!rill_rotate(argv[1], ts.tv_sec)) rill_exit(1);
+    if (!rill_rotate(argv[1], ts.tv_sec, expire_secs)) rill_exit(1);
 
     return 0;
 }
-

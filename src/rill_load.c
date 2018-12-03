@@ -56,6 +56,8 @@ int main(int argc, char **argv)
         vals_per_key = 4,
 
         acc_cap = keys_per_sec * vals_per_key * rotation_rate,
+
+        default_expire_time = expire_secs,
     };
 
     struct rill_acc *acc = rill_acc_open("db", acc_cap);
@@ -74,13 +76,13 @@ int main(int argc, char **argv)
 
         if (ts % rotation_rate == 0) {
             acc_dump(acc, "db", ts);
-            if (!rill_rotate("db", ts)) rill_abort();
+            if (!rill_rotate("db", ts, default_expire_time)) rill_abort();
         }
     }
 
     rill_ts_t ts = seconds + 60 * 60;
     acc_dump(acc, "db", ts);
-    if (!rill_rotate("db", ts)) rill_abort();
+    if (!rill_rotate("db", ts, default_expire_time)) rill_abort();
 
     rill_acc_close(acc);
     return 0;

@@ -21,14 +21,15 @@
 // rotate
 // -----------------------------------------------------------------------------
 
-static ssize_t expire(rill_ts_t now, struct rill_store **list, ssize_t len)
+static ssize_t expire(
+    const rill_ts_t expire_time, rill_ts_t now, struct rill_store **list, ssize_t len)
 {
     if (len < 0) return len;
-    if (now < expire_secs) return len; // mostly for tests.
+    if (now < expire_time) return len; // mostly for tests.
 
     size_t i = 0;
     for (; i < (size_t) len; ++i) {
-        if (rill_store_ts(list[i]) < (now - expire_secs)) break;
+        if (rill_store_ts(list[i]) < (now - expire_time)) break;
     }
 
     size_t end = i;
@@ -208,7 +209,7 @@ static void unlock(int fd)
     close(fd);
 }
 
-bool rill_rotate(const char *dir, rill_ts_t now)
+bool rill_rotate(const char *dir, rill_ts_t now, rill_ts_t expire_time)
 {
     int fd = lock(dir);
     if (!fd) return true;
@@ -220,7 +221,7 @@ bool rill_rotate(const char *dir, rill_ts_t now)
     qsort(list, list_len, sizeof(list[0]), store_cmp);
 
     ssize_t len = list_len;
-    len = expire(now, list, len);
+    len = expire(expire_time, now, list, len);
     len = merge_quant(dir, now, hour_secs, list, len);
     len = merge_quant(dir, now, day_secs, list, len);
     len = merge_quant(dir, now, week_secs, list, len);
