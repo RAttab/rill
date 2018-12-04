@@ -5,7 +5,6 @@
 
 #include "test.h"
 
-
 // -----------------------------------------------------------------------------
 // rotate
 // -----------------------------------------------------------------------------
@@ -34,11 +33,11 @@ bool test_rotate(void)
         for (rill_ts_t ts = 0; ts < expire_secs; ts += step) {
             rill_acc_ingest(acc, key, ts + 1);
             acc_dump(acc, dir, ts);
-            rill_rotate(dir, ts);
+            rill_rotate(dir, ts, expire_secs);
         }
 
         acc_dump(acc, dir, expire_secs);
-        rill_rotate(dir, expire_secs);
+        rill_rotate(dir, expire_secs, expire_secs);
     }
 
     {
@@ -59,7 +58,7 @@ bool test_rotate(void)
     for (size_t i = 1; i <= 6; ++i) {
         rill_ts_t ts = (months_in_expire + i) * month_secs;
         acc_dump(acc, dir, ts);
-        rill_rotate(dir, ts);
+        rill_rotate(dir, ts, expire_secs);
     }
 
     rill_acc_close(acc);

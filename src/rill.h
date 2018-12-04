@@ -161,7 +161,7 @@ bool rill_acc_write(struct rill_acc *acc, const char *file, rill_ts_t now);
 // rotate
 // -----------------------------------------------------------------------------
 
-bool rill_rotate(const char *dir, rill_ts_t now);
+bool rill_rotate(const char *dir, rill_ts_t now, rill_ts_t expire);
 
 
 // -----------------------------------------------------------------------------
