@@ -224,8 +224,8 @@ bool rill_rotate(const char *dir, rill_ts_t now, rill_ts_t expire_time)
     len = expire(expire_time, now, list, len);
     len = merge_quant(dir, now, hour_secs, list, len);
     len = merge_quant(dir, now, day_secs, list, len);
-    len = merge_quant(dir, now, week_secs, list, len);
-    len = merge_quant(dir, now, month_secs, list, len);
+    // len = merge_quant(dir, now, week_secs, list, len);
+    // len = merge_quant(dir, now, month_secs, list, len);
 
     for (size_t i = 0; i < list_len; ++i) {
         if (list[i]) rill_store_close(list[i]);
